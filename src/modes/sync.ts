@@ -115,9 +115,9 @@ async function rebuildTrackerState(
   const { claims, skippedBot } = rebuildClaimsFromComments(comments, files, ctx.config);
   await ctx.api.addComment(
     issueNumber,
-    `♻️ The tracker state block was unreadable — ${claims.length} active claim(s) rebuilt from claim comments` +
+    `♻️ The tracker state block was unreadable. Rebuilt ${claims.length} active claim(s) from comments` +
       (skippedBot > 0 ? ` (${skippedBot} bot comment(s) ignored)` : '') +
-      '. Please re-claim if anything is missing.',
+      '. Please re-claim anything missing.',
   );
   return { version: 1, files, claims };
 }
@@ -143,16 +143,16 @@ async function writeSyncSummary(
       rendered.length > 12000 ? `${rendered.slice(0, 12000)}\n…(preview truncated)` : rendered;
     body += '\n```\n\n';
   } else {
-    body += `- Tracker issue: ${info.issueNumber ?? 'not found'}\n`;
-    body += `- Entries needing translation: ${state.files.length}\n`;
+    body += `- Issue: ${info.issueNumber ?? 'not found'}\n`;
+    body += `- Entries: ${state.files.length}\n`;
   }
   const notes: string[] = [];
   if (info.releasedByView > 0) {
-    notes.push(`admin unchecked ${info.releasedByView} line(s), released`);
+    notes.push(`- Manual uncheck released: ${info.releasedByView}\n`);
   }
   if (info.rebuiltClaims > 0) {
-    notes.push(`state block corrupted, rebuilt ${info.rebuiltClaims} claim(s) from comments`);
+    notes.push(`- Rebuilt from comments: ${info.rebuiltClaims}\n`);
   }
-  if (notes.length > 0) body += `- ${notes.join('; ')}\n`;
+  if (notes.length > 0) body += notes.join('');
   await writeStepSummary(body);
 }

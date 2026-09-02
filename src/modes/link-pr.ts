@@ -67,8 +67,7 @@ export async function runLinkPr(ctx: ModeContext): Promise<void> {
   await writeStepSummary(
     `**🔗 PR linked (PR #${pr.number})**
 
-- Linked ${linked.length} claim(s), expiry frozen
-- Body updated.`,
+- Linked: ${linked.length} (expiry frozen, body updated)`,
   );
 }
 
@@ -105,6 +104,6 @@ async function handleClosed(
   await writeStepSummary(
     `**↩️ PR closed unmerged (PR #${pr.number})**
 
-- Released ${released.length} claim(s) and reminded.`,
+- Released: ${released.length} (with reminder)`,
   );
 }

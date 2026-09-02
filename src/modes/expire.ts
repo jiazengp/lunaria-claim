@@ -44,8 +44,7 @@ export async function runExpire(ctx: ModeContext): Promise<void> {
   await writeStepSummary(
     `**⏰ Expiry sweep (issue #${issue.number})**
 
-- Released: ${expired.length} overdue claim(s)
-- Reminder comments posted: ${expired.length}
+- Released: ${expired.length} overdue claim(s), with reminder comments
 `,
   );
 }

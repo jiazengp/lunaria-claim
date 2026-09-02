@@ -128,10 +128,11 @@ export async function runClaim(ctx: ModeContext): Promise<void> {
   await writeStepSummary(
     [
       `**🤖 Claim processing (issue #${event.issue.number})**`,
-      `- Claimed: ${application.created}, skipped: ${application.skipped.length}, failed: ${failures.length}`,
+      '',
+      `- Created: ${application.created}, skipped: ${application.skipped.length}, failed: ${failures.length}`,
       releasedAny ? `- Given up: ${releaseTokens.length} target(s)` : null,
       replies.length > 0 ? `- Replies posted: ${replies.length}` : null,
-      changed ? '- Body updated' : '- Body unchanged',
+      changed ? '- Body: updated' : '- Body: unchanged',
     ]
       .filter((line): line is string => line !== null)
       .join('\n'),

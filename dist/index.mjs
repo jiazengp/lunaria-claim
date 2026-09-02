@@ -165,12 +165,12 @@ function createGitHubApi(token, repo) {
 //#endregion
 //#region src/messages.ts
 const DEFAULT_MESSAGES = {
-	duplicate: "👀 `{path}`（{locale}）已被 @{claimer} 认领，请选择清单里其他未认领的文件。",
-	unknown_file: "❓ 清单里没有找到 `{token}`（可能已完成翻译），请从清单中复制完整文件路径后重试。",
-	ambiguous: "❓ `{token}` 匹配到多个文件：{candidates}。请使用完整路径，或在前面注明语言，例如 `en/{token}`。",
-	expired: "⏰ @{user} 认领的 `{path}`（{locale}）已超过 {ttlDays} 天未提交 PR，已自动释放回待认领清单，欢迎之后重新认领。",
-	pr_closed: "↩️ @{user} 的 PR 已关闭且未合并，以下认领已释放回清单：{paths}",
-	dir_skipped: "📚 `{dir}` 认领了 {claimed} 个文件；另有 {skippedCount} 个已被他人认领，自动跳过：{skipped}"
+	duplicate: "👀 `{path}`（{locale}）已被 @{claimer} 认领，请换一个文件。",
+	unknown_file: "❓ 清单里没有 `{token}`（或已翻译完成）。请从清单复制完整路径后重试。",
+	ambiguous: "❓ `{token}` 匹配到多个文件：{candidates}。请用完整路径或加语言前缀，如 `en/{token}`。",
+	expired: "⏰ @{user} 认领的 `{path}`（{locale}）已超过 {ttlDays} 天未提交 PR，已自动释放，欢迎重新认领。",
+	pr_closed: "↩️ @{user} 的 PR 已关闭未合并，已释放：{paths}",
+	dir_skipped: "📚 `{dir}` 认领 {claimed} 个文件；{skippedCount} 个已被认领，自动跳过：{skipped}"
 };
 function message(config, key, vars = {}) {
 	return (config.messages[key] ?? DEFAULT_MESSAGES[key] ?? key).replace(/\{(\w+)\}/g, (match, name) => vars[name] ?? match);
@@ -676,10 +676,11 @@ async function runClaim(ctx) {
 	core.info(`claim processing done: ${entries.length} entry(ies), ${failures.length} failed, changed=${changed}`);
 	await writeStepSummary([
 		`**🤖 Claim processing (issue #${event.issue.number})**`,
-		`- Claimed: ${application.created}, skipped: ${application.skipped.length}, failed: ${failures.length}`,
+		"",
+		`- Created: ${application.created}, skipped: ${application.skipped.length}, failed: ${failures.length}`,
 		releasedAny ? `- Given up: ${releaseTokens.length} target(s)` : null,
 		replies.length > 0 ? `- Replies posted: ${replies.length}` : null,
-		changed ? "- Body updated" : "- Body unchanged"
+		changed ? "- Body: updated" : "- Body: unchanged"
 	].filter((line) => line !== null).join("\n"));
 }
 /** 宽松模式：先对齐清单里出现的完整 sharedPath，再看目录前缀（如 `src/manual/`） */
@@ -723,8 +724,7 @@ async function runExpire(ctx) {
 	core.info(`released ${expired.length} expired claim(s) on issue #${issue.number}`);
 	await writeStepSummary(`**⏰ Expiry sweep (issue #${issue.number})**
 
-- Released: ${expired.length} overdue claim(s)
-- Reminder comments posted: ${expired.length}
+- Released: ${expired.length} overdue claim(s), with reminder comments
 `);
 }
 //#endregion
@@ -764,8 +764,7 @@ async function runLinkPr(ctx) {
 	core.info(`linked PR #${pr.number} to ${linked.length} claim(s), expiry frozen`);
 	await writeStepSummary(`**🔗 PR linked (PR #${pr.number})**
 
-- Linked ${linked.length} claim(s), expiry frozen
-- Body updated.`);
+- Linked: ${linked.length} (expiry frozen, body updated)`);
 }
 async function handleClosed(ctx, issueNumber, body, state, pr) {
 	if (pr.merged) {
@@ -791,7 +790,7 @@ async function handleClosed(ctx, issueNumber, body, state, pr) {
 	core.info(`released ${released.length} claim(s) after PR #${pr.number} closed unmerged`);
 	await writeStepSummary(`**↩️ PR closed unmerged (PR #${pr.number})**
 
-- Released ${released.length} claim(s) and reminded.`);
+- Released: ${released.length} (with reminder)`);
 }
 //#endregion
 //#region src/lunaria.ts
@@ -929,7 +928,7 @@ async function runSync(ctx) {
 async function rebuildTrackerState(ctx, issueNumber, files) {
 	core.warning(`tracker issue #${issueNumber} state block is unreadable — rebuilding from claim comments`);
 	const { claims, skippedBot } = rebuildClaimsFromComments(await ctx.api.listComments(issueNumber), files, ctx.config);
-	await ctx.api.addComment(issueNumber, `♻️ The tracker state block was unreadable — ${claims.length} active claim(s) rebuilt from claim comments` + (skippedBot > 0 ? ` (${skippedBot} bot comment(s) ignored)` : "") + ". Please re-claim if anything is missing.");
+	await ctx.api.addComment(issueNumber, `♻️ The tracker state block was unreadable. Rebuilt ${claims.length} active claim(s) from comments` + (skippedBot > 0 ? ` (${skippedBot} bot comment(s) ignored)` : "") + ". Please re-claim anything missing.");
 	return {
 		version: 1,
 		files,
@@ -943,13 +942,13 @@ async function writeSyncSummary(ctx, state, rendered, info) {
 		body += rendered.length > 12e3 ? `${rendered.slice(0, 12e3)}\n…(preview truncated)` : rendered;
 		body += "\n```\n\n";
 	} else {
-		body += `- Tracker issue: ${info.issueNumber ?? "not found"}\n`;
-		body += `- Entries needing translation: ${state.files.length}\n`;
+		body += `- Issue: ${info.issueNumber ?? "not found"}\n`;
+		body += `- Entries: ${state.files.length}\n`;
 	}
 	const notes = [];
-	if (info.releasedByView > 0) notes.push(`admin unchecked ${info.releasedByView} line(s), released`);
-	if (info.rebuiltClaims > 0) notes.push(`state block corrupted, rebuilt ${info.rebuiltClaims} claim(s) from comments`);
-	if (notes.length > 0) body += `- ${notes.join("; ")}\n`;
+	if (info.releasedByView > 0) notes.push(`- Manual uncheck released: ${info.releasedByView}\n`);
+	if (info.rebuiltClaims > 0) notes.push(`- Rebuilt from comments: ${info.rebuiltClaims}\n`);
+	if (notes.length > 0) body += notes.join("");
 	await writeStepSummary(body);
 }
 //#endregion

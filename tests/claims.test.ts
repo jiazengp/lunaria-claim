@@ -307,7 +307,7 @@ describe('composeClaimReplies', () => {
     });
     expect(replies).toHaveLength(1);
     expect(replies[0]).toContain('src/manual');
-    expect(replies[0]).toContain('认领了 3 个文件');
+    expect(replies[0]).toContain('认领 3 个文件');
     expect(replies[0]).toContain('@bob');
     expect(replies[0]).toContain('@carol');
     expect(replies[0]).not.toContain('等 ');
@@ -328,7 +328,7 @@ describe('composeClaimReplies', () => {
       config,
     });
     expect(replies[0]).toContain('等 4 个');
-    expect(replies[0]).toContain('认领了 0 个文件');
+    expect(replies[0]).toContain('认领 0 个文件');
   });
 });
 
