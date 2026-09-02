@@ -16,6 +16,14 @@ export interface IssueRef {
   body: string | null;
 }
 
+export interface RawComment {
+  id: number;
+  user: string;
+  createdAt: string;
+  htmlUrl: string;
+  body: string;
+}
+
 export interface CommentInfo {
   body: string;
   user: string;
@@ -28,6 +36,7 @@ export interface GitHubApi {
   createIssue(params: { title: string; body: string; labels: string[] }): Promise<number>;
   updateIssueBody(issueNumber: number, body: string): Promise<void>;
   getComment(commentId: number): Promise<CommentInfo>;
+  listComments(issueNumber: number): Promise<RawComment[]>;
   reactToComment(commentId: number, content: ReactionContent): Promise<void>;
   addComment(issueNumber: number, body: string): Promise<void>;
   listPullRequestFiles(prNumber: number): Promise<string[]>;
@@ -74,6 +83,21 @@ export function createGitHubApi(token: string, repo: { owner: string; repo: stri
         createdAt: data.created_at,
         htmlUrl: data.html_url,
       };
+    },
+    async listComments(issueNumber) {
+      const comments = await octokit.paginate(octokit.rest.issues.listComments, {
+        owner,
+        repo: repoName,
+        issue_number: issueNumber,
+        per_page: 100,
+      });
+      return comments.map((comment) => ({
+        id: comment.id,
+        user: comment.user?.login ?? '',
+        createdAt: comment.created_at,
+        htmlUrl: comment.html_url,
+        body: comment.body ?? '',
+      }));
     },
     async reactToComment(commentId, content) {
       await octokit.rest.reactions

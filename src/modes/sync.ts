@@ -1,17 +1,20 @@
 import { existsSync, readFileSync } from 'node:fs';
 import * as core from '@actions/core';
-import { applyViewEdits } from '../claims.js';
+import { applyViewEdits, type RawComment, rebuildClaimsFromComments } from '../claims.js';
 import { readLunariaStatus, toTrackedFiles } from '../lunaria.js';
-import { groupByLocale, type TrackerState } from '../model.js';
+import { groupByLocale, type TrackedFile, type TrackerState } from '../model.js';
 import { reconcile } from '../reconcile.js';
 import { applyPlaceholders, renderBody, renderOptions } from '../render.js';
 import { parseState } from '../state.js';
-import type { ModeContext } from './index.js';
+import { type ModeContext, writeStepSummary } from './index.js';
 
 export async function runSync(ctx: ModeContext): Promise<void> {
-  const { statusJsonPath } = ctx.inputs;
+  const { statusJsonPath, dryRun } = ctx.inputs;
   if (!existsSync(statusJsonPath)) {
-    throw new Error(`status.json not found at ${statusJsonPath} — run \`lunaria build\` first`);
+    throw new Error(
+      `status.json not found at ${statusJsonPath} — check the \`outDir\` in lunaria.config.json; ` +
+        `status.json lives under your outDir (the default './dist/lunaria/status.json' is only an example).`,
+    );
   }
   const template = readFileSync(ctx.config.templatePath, 'utf-8');
   const status = readLunariaStatus(statusJsonPath);
@@ -22,38 +25,131 @@ export async function runSync(ctx: ModeContext): Promise<void> {
   );
 
   const issue = await ctx.api.findTrackerIssue(ctx.config.issue.label);
+
+  let current: TrackerState;
+  let baseBody: string;
+  let rebuiltClaims = 0;
   if (!issue) {
-    const state: TrackerState = { version: 1, files: desiredFiles, claims: [] };
-    const body = applyPlaceholders(
-      renderBody(template, groupByLocale(desiredFiles), state, renderOptions(ctx.config)),
-      {
-        ttl_days: String(ctx.config.ttlDays),
-        dashboard_url: ctx.config.dashboardUrl ?? '',
-      },
-    );
-    const number = await ctx.api.createIssue({
-      title: ctx.config.issue.title,
-      body,
-      labels: [ctx.config.issue.label],
+    current = { version: 1, files: desiredFiles, claims: [] };
+    baseBody = template;
+  } else {
+    baseBody = issue.body ?? template;
+    const parsed = parseState(baseBody);
+    if (parsed) {
+      current = parsed;
+    } else {
+      current = await rebuildTrackerState(ctx, issue.number, desiredFiles);
+      rebuiltClaims = current.claims.length;
+    }
+  }
+
+  const releasedByView = applyViewEdits(current, baseBody, ctx.now);
+  const { state, sections, changed } = reconcile(current, desiredFiles, ctx.now);
+  const rendered = applyPlaceholders(
+    renderBody(baseBody, sections, state, renderOptions(ctx.config)),
+    {
+      ttl_days: String(ctx.config.ttlDays),
+      dashboard_url: ctx.config.dashboardUrl ?? '',
+    },
+  );
+
+  if (dryRun) {
+    await writeSyncSummary(ctx, state, rendered, {
+      preview: true,
+      issueNumber: issue?.number ?? null,
+      rebuiltClaims,
+      releasedByView,
     });
-    core.info(`created tracker issue #${number}`);
     return;
   }
 
-  const current = parseState(issue.body ?? '');
-  if (!current) {
-    throw new Error(`tracker issue #${issue.number} has no readable state block`);
-  }
-  const releasedByView = applyViewEdits(current, issue.body ?? '', ctx.now);
-  if (releasedByView > 0) {
-    core.info(`manual view edits released ${releasedByView} claim(s)`);
-  }
-  const { state, sections, changed } = reconcile(current, desiredFiles, ctx.now);
-  if (!changed) {
-    core.info(`tracker issue #${issue.number} is up to date`);
+  if (!issue) {
+    const number = await ctx.api.createIssue({
+      title: ctx.config.issue.title,
+      body: rendered,
+      labels: [ctx.config.issue.label],
+    });
+    core.setOutput(
+      'issue-url',
+      `https://github.com/${ctx.repo.owner}/${ctx.repo.repo}/issues/${number}`,
+    );
+    await writeSyncSummary(ctx, state, rendered, {
+      preview: false,
+      issueNumber: number,
+      rebuiltClaims,
+      releasedByView,
+    });
     return;
   }
-  const body = renderBody(issue.body ?? template, sections, state, renderOptions(ctx.config));
-  await ctx.api.updateIssueBody(issue.number, body);
-  core.info(`updated tracker issue #${issue.number}`);
+  if (!changed && rebuiltClaims === 0) {
+    core.info(`tracker issue #${issue.number} is up to date`);
+    core.setOutput(
+      'issue-url',
+      `https://github.com/${ctx.repo.owner}/${ctx.repo.repo}/issues/${issue.number}`,
+    );
+    return;
+  }
+  await ctx.api.updateIssueBody(issue.number, rendered);
+  core.setOutput(
+    'issue-url',
+    `https://github.com/${ctx.repo.owner}/${ctx.repo.repo}/issues/${issue.number}`,
+  );
+  await writeSyncSummary(ctx, state, rendered, {
+    preview: false,
+    issueNumber: issue.number,
+    rebuiltClaims,
+    releasedByView,
+  });
+}
+
+/** 状态块损坏时的自愈：从认领评论回放重建，并告知 contributors 重建结果 */
+async function rebuildTrackerState(
+  ctx: ModeContext,
+  issueNumber: number,
+  files: TrackedFile[],
+): Promise<TrackerState> {
+  core.warning(
+    `tracker issue #${issueNumber} state block is unreadable — rebuilding from claim comments`,
+  );
+  const comments: RawComment[] = await ctx.api.listComments(issueNumber);
+  const { claims, skippedBot } = rebuildClaimsFromComments(comments, files, ctx.config);
+  await ctx.api.addComment(
+    issueNumber,
+    `♻️ 认领状态块已损坏，已从认领评论重建 ${claims.length} 条活跃认领` +
+      (skippedBot > 0 ? `（忽略 ${skippedBot} 条 bot 评论）` : '') +
+      '。如有遗漏请重新认领。',
+  );
+  return { version: 1, files, claims };
+}
+
+async function writeSyncSummary(
+  ctx: ModeContext,
+  state: TrackerState,
+  rendered: string,
+  info: {
+    preview: boolean;
+    issueNumber: number | null;
+    rebuiltClaims: number;
+    releasedByView: number;
+  },
+): Promise<void> {
+  const heading = info.preview ? '🔍 模板预览（dry-run，未写入任何内容）' : '🤖 认领看板已更新';
+  let body = `**${heading}**\n\n`;
+  if (info.preview) {
+    body += '```markdown\n';
+    body += rendered.length > 12000 ? `${rendered.slice(0, 12000)}\n…（预览截断）` : rendered;
+    body += '\n```\n\n';
+  } else {
+    body += `- 认领 issue：${info.issueNumber ?? '（未找到）'}\n`;
+    body += `- 待翻译条目：${state.files.length}\n`;
+  }
+  const notes: string[] = [];
+  if (info.releasedByView > 0) {
+    notes.push(`管理员手动取消勾选 ${info.releasedByView} 条，已释放`);
+  }
+  if (info.rebuiltClaims > 0) {
+    notes.push(`状态块损坏，已自愈重建 ${info.rebuiltClaims} 条认领`);
+  }
+  if (notes.length > 0) body += `- ${notes.join('；')}\n`;
+  await writeStepSummary(body);
 }

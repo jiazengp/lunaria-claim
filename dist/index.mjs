@@ -50,7 +50,8 @@ function parseInputs(raw) {
 		mode: ModeSchema.parse(raw.mode),
 		token,
 		statusJsonPath: raw.statusJson || "./dist/lunaria/status.json",
-		configPath: raw.configPath || ".github/lunaria-claim.yml"
+		configPath: raw.configPath || ".github/lunaria-claim.yml",
+		dryRun: raw.dryRun === "true"
 	};
 }
 function loadConfig(path) {
@@ -117,6 +118,20 @@ function createGitHubApi(token, repo) {
 				createdAt: data.created_at,
 				htmlUrl: data.html_url
 			};
+		},
+		async listComments(issueNumber) {
+			return (await octokit.paginate(octokit.rest.issues.listComments, {
+				owner,
+				repo: repoName,
+				issue_number: issueNumber,
+				per_page: 100
+			})).map((comment) => ({
+				id: comment.id,
+				user: comment.user?.login ?? "",
+				createdAt: comment.created_at,
+				htmlUrl: comment.html_url,
+				body: comment.body ?? ""
+			}));
 		},
 		async reactToComment(commentId, content) {
 			await octokit.rest.reactions.createForIssueComment({
@@ -341,6 +356,82 @@ function renderFileLine(file, claimsByFile) {
 	return `- [${checked}] \`${file.sharedPath}\`${STATUS_BADGE[file.status]}${owner}`;
 }
 //#endregion
+//#region src/resolve.ts
+/**
+* 把用户输入的路径 token 解析为清单条目（单个文件或整个目录）。接受：
+* sharedPath、仓库真实路径（含语言目录）、`语言/路径` 简写、目录前缀（含尾部斜杠）、裸文件名。
+*/
+function resolveTargets(tokens, state) {
+	const entries = [];
+	const failures = [];
+	for (const raw of tokens) {
+		const token = normalizeToken(raw);
+		const candidates = scopeByLocale(token, matchFiles(token, state.files));
+		if (candidates.length === 0) failures.push({
+			token,
+			reason: "unknown",
+			candidates: []
+		});
+		else if (isDirToken(token, candidates)) entries.push({
+			token,
+			kind: "dir",
+			files: candidates
+		});
+		else {
+			const first = candidates[0];
+			if (candidates.length === 1 && first) entries.push({
+				token,
+				kind: "file",
+				files: [first]
+			});
+			else failures.push({
+				token,
+				reason: "ambiguous",
+				candidates: candidates.slice(0, 3).map((file) => `${file.sharedPath}（${file.locale}）`)
+			});
+		}
+	}
+	return {
+		entries,
+		failures
+	};
+}
+function normalizeToken(token) {
+	return token.replace(/^\.\//, "").replace(/^\/+|\/+$/g, "");
+}
+function matchFiles(token, files) {
+	const matches = /* @__PURE__ */ new Map();
+	const add = (file) => matches.set(fileKey(file.locale, file.sharedPath), file);
+	const tokenStem = token.replace(/\.[^.]+$/, "");
+	for (const file of files) {
+		if (file.sharedPath === token || file.sharedPath.replace(/\.[^.]+$/, "") === tokenStem) {
+			add(file);
+			continue;
+		}
+		if (file.localizationPath === token || file.localizationPath?.endsWith(`/${token}`)) add(file);
+	}
+	if (matches.size === 0) {
+		for (const file of files) if (token.endsWith(`/${file.sharedPath}`)) add(file);
+	}
+	for (const file of files) if (file.sharedPath.startsWith(`${token}/`)) add(file);
+	for (const file of files) if (file.localizationPath?.startsWith(`${token}/`)) add(file);
+	if (!token.includes("/")) {
+		for (const file of files) if (file.sharedPath.slice(file.sharedPath.lastIndexOf("/") + 1) === token) add(file);
+	}
+	return [...matches.values()];
+}
+/** token 对全部候选都是目录前缀时视为目录认领（否则视为歧义的文件匹配） */
+function isDirToken(token, candidates) {
+	return candidates.every((file) => file.sharedPath.startsWith(`${token}/`) || file.localizationPath?.startsWith(`${token}/`));
+}
+/** token 里显式包含语言段（如 `en/foo.md`）时用它消歧 */
+function scopeByLocale(token, candidates) {
+	if (candidates.length <= 1) return candidates;
+	const segments = new Set(token.split("/"));
+	const scoped = candidates.filter((file) => segments.has(file.locale));
+	return scoped.length > 0 ? scoped : candidates;
+}
+//#endregion
 //#region src/claims.ts
 /**
 * 把解析出的条目应用到状态：单文件认领一条，目录认领展开为其下所有文件。
@@ -437,6 +528,48 @@ function applyViewEdits(state, body, now) {
 	}
 	return released;
 }
+/**
+* 状态块损坏时的尽力自愈：按时间顺序回放评论里的 /claim、/release 命令，
+* 重建活跃认领。返回值为空时调用方应放弃（评论里没有任何可识别的认领）。
+*/
+function rebuildClaimsFromComments(comments, files, config) {
+	const skippedBot = comments.filter((comment) => comment.user.endsWith("[bot]")).length;
+	const pending = /* @__PURE__ */ new Map();
+	const known = files.map((file) => file.sharedPath);
+	for (const comment of comments) {
+		if (comment.user.endsWith("[bot]")) continue;
+		const commands = parseClaimComment(comment.body);
+		const claimTokens = commands.filter((c) => c.kind === "claim").flatMap((c) => c.paths);
+		const releaseTokens = commands.filter((c) => c.kind === "release").flatMap((c) => c.paths);
+		if (claimTokens.length === 0 && !config.strictClaimSyntax && hasIntent(comment.body, config.lenientKeywords)) claimTokens.push(...extractKnownPaths(comment.body, known));
+		const { entries } = resolveTargets(claimTokens, {
+			version: 1,
+			files: [...files],
+			claims: []
+		});
+		for (const entry of entries) for (const file of entry.files) {
+			const key = `${comment.user}::${fileKey(file.locale, file.sharedPath)}`;
+			if (!pending.has(key)) pending.set(key, {
+				user: comment.user,
+				claimedAt: comment.createdAt,
+				commentId: comment.id,
+				commentUrl: comment.htmlUrl,
+				path: file.sharedPath,
+				locale: file.locale
+			});
+		}
+		const releases = resolveTargets(releaseTokens, {
+			version: 1,
+			files: [...files],
+			claims: []
+		});
+		for (const entry of releases.entries) for (const file of entry.files) pending.delete(`${comment.user}::${fileKey(file.locale, file.sharedPath)}`);
+	}
+	return {
+		claims: [...pending.values()].map((value) => ({ ...value })),
+		skippedBot
+	};
+}
 /** 把解析/应用结果编排成对认领评论的回复：目录级跳过聚合、单文件跳过逐条、失败映射 */
 function composeClaimReplies(input) {
 	const { entries, failures, skipped, config } = input;
@@ -476,82 +609,6 @@ function readEventPayload() {
 	const path = process.env.GITHUB_EVENT_PATH;
 	if (!path) throw new Error("GITHUB_EVENT_PATH is not set (are you running inside a workflow?)");
 	return JSON.parse(readFileSync(path, "utf-8"));
-}
-//#endregion
-//#region src/resolve.ts
-/**
-* 把用户输入的路径 token 解析为清单条目（单个文件或整个目录）。接受：
-* sharedPath、仓库真实路径（含语言目录）、`语言/路径` 简写、目录前缀（含尾部斜杠）、裸文件名。
-*/
-function resolveTargets(tokens, state) {
-	const entries = [];
-	const failures = [];
-	for (const raw of tokens) {
-		const token = normalizeToken(raw);
-		const candidates = scopeByLocale(token, matchFiles(token, state.files));
-		if (candidates.length === 0) failures.push({
-			token,
-			reason: "unknown",
-			candidates: []
-		});
-		else if (isDirToken(token, candidates)) entries.push({
-			token,
-			kind: "dir",
-			files: candidates
-		});
-		else {
-			const first = candidates[0];
-			if (candidates.length === 1 && first) entries.push({
-				token,
-				kind: "file",
-				files: [first]
-			});
-			else failures.push({
-				token,
-				reason: "ambiguous",
-				candidates: candidates.slice(0, 3).map((file) => `${file.sharedPath}（${file.locale}）`)
-			});
-		}
-	}
-	return {
-		entries,
-		failures
-	};
-}
-function normalizeToken(token) {
-	return token.replace(/^\.\//, "").replace(/^\/+|\/+$/g, "");
-}
-function matchFiles(token, files) {
-	const matches = /* @__PURE__ */ new Map();
-	const add = (file) => matches.set(fileKey(file.locale, file.sharedPath), file);
-	const tokenStem = token.replace(/\.[^.]+$/, "");
-	for (const file of files) {
-		if (file.sharedPath === token || file.sharedPath.replace(/\.[^.]+$/, "") === tokenStem) {
-			add(file);
-			continue;
-		}
-		if (file.localizationPath === token || file.localizationPath?.endsWith(`/${token}`)) add(file);
-	}
-	if (matches.size === 0) {
-		for (const file of files) if (token.endsWith(`/${file.sharedPath}`)) add(file);
-	}
-	for (const file of files) if (file.sharedPath.startsWith(`${token}/`)) add(file);
-	for (const file of files) if (file.localizationPath?.startsWith(`${token}/`)) add(file);
-	if (!token.includes("/")) {
-		for (const file of files) if (file.sharedPath.slice(file.sharedPath.lastIndexOf("/") + 1) === token) add(file);
-	}
-	return [...matches.values()];
-}
-/** token 对全部候选都是目录前缀时视为目录认领（否则视为歧义的文件匹配） */
-function isDirToken(token, candidates) {
-	return candidates.every((file) => file.sharedPath.startsWith(`${token}/`) || file.localizationPath?.startsWith(`${token}/`));
-}
-/** token 里显式包含语言段（如 `en/foo.md`）时用它消歧 */
-function scopeByLocale(token, candidates) {
-	if (candidates.length <= 1) return candidates;
-	const segments = new Set(token.split("/"));
-	const scoped = candidates.filter((file) => segments.has(file.locale));
-	return scoped.length > 0 ? scoped : candidates;
 }
 //#endregion
 //#region src/modes/claim.ts
@@ -617,6 +674,13 @@ async function runClaim(ctx) {
 		await ctx.api.reactToComment(event.comment.id, "confused");
 	}
 	core.info(`claim processing done: ${entries.length} entry(ies), ${failures.length} failed, changed=${changed}`);
+	await writeStepSummary([
+		`**🤖 认领处理（issue #${event.issue.number}）**`,
+		`- 认领：${application.created} 条；跳过 ${application.skipped.length} 条冲突；失败 ${failures.length} 条`,
+		releasedAny ? `- 主动放弃：${releaseTokens.length} 个目标` : null,
+		replies.length > 0 ? `- 回复：${replies.length} 条提示评论` : null,
+		changed ? "- body 已更新" : "- body 无变化"
+	].filter((line) => line !== null).join("\n"));
 }
 /** 宽松模式：先对齐清单里出现的完整 sharedPath，再看目录前缀（如 `src/manual/`） */
 function lenientTargets(body, state) {
@@ -657,6 +721,11 @@ async function runExpire(ctx) {
 	const body = renderBody(issue.body, groupByLocale(state.files), state, renderOptions(ctx.config));
 	await ctx.api.updateIssueBody(issue.number, body);
 	core.info(`released ${expired.length} expired claim(s) on issue #${issue.number}`);
+	await writeStepSummary(`**⏰ 超期清扫（issue #${issue.number}）**
+
+- 释放：${expired.length} 条超期认领
+- 已发提醒评论：${expired.length} 条
+`);
 }
 //#endregion
 //#region src/modes/link-pr.ts
@@ -693,6 +762,10 @@ async function runLinkPr(ctx) {
 	const updated = renderBody(issue.body, groupByLocale(state.files), state, renderOptions(ctx.config));
 	await ctx.api.updateIssueBody(issue.number, updated);
 	core.info(`linked PR #${pr.number} to ${linked.length} claim(s), expiry frozen`);
+	await writeStepSummary(`**🔗 PR 关联（PR #${pr.number}）**
+
+- 已关联 ${linked.length} 条认领，过期计时已冻结，
+- body 已更新。`);
 }
 async function handleClosed(ctx, issueNumber, body, state, pr) {
 	if (pr.merged) {
@@ -716,6 +789,9 @@ async function handleClosed(ctx, issueNumber, body, state, pr) {
 		paths: released.join("、")
 	}));
 	core.info(`released ${released.length} claim(s) after PR #${pr.number} closed unmerged`);
+	await writeStepSummary(`**↩️ PR 关闭未合并（PR #${pr.number}）**
+
+- 释放 ${released.length} 条认领并回复提醒。`);
 }
 //#endregion
 //#region src/lunaria.ts
@@ -779,46 +855,113 @@ function reconcile(current, desiredFiles, now) {
 //#endregion
 //#region src/modes/sync.ts
 async function runSync(ctx) {
-	const { statusJsonPath } = ctx.inputs;
-	if (!existsSync(statusJsonPath)) throw new Error(`status.json not found at ${statusJsonPath} — run \`lunaria build\` first`);
+	const { statusJsonPath, dryRun } = ctx.inputs;
+	if (!existsSync(statusJsonPath)) throw new Error(`status.json not found at ${statusJsonPath} — check the \`outDir\` in lunaria.config.json; status.json lives under your outDir (the default './dist/lunaria/status.json' is only an example).`);
 	const template = readFileSync(ctx.config.templatePath, "utf-8");
 	const status = readLunariaStatus(statusJsonPath);
 	const desiredFiles = toTrackedFiles(status, [...new Set(status.flatMap((item) => Object.keys(item.localizations)))]);
 	core.info(`lunaria status: ${status.length} shared paths, ${desiredFiles.length} entries needing translation`);
 	const issue = await ctx.api.findTrackerIssue(ctx.config.issue.label);
+	let current;
+	let baseBody;
+	let rebuiltClaims = 0;
 	if (!issue) {
-		const state = {
+		current = {
 			version: 1,
 			files: desiredFiles,
 			claims: []
 		};
-		const body = applyPlaceholders(renderBody(template, groupByLocale(desiredFiles), state, renderOptions(ctx.config)), {
-			ttl_days: String(ctx.config.ttlDays),
-			dashboard_url: ctx.config.dashboardUrl ?? ""
+		baseBody = template;
+	} else {
+		baseBody = issue.body ?? template;
+		const parsed = parseState(baseBody);
+		if (parsed) current = parsed;
+		else {
+			current = await rebuildTrackerState(ctx, issue.number, desiredFiles);
+			rebuiltClaims = current.claims.length;
+		}
+	}
+	const releasedByView = applyViewEdits(current, baseBody, ctx.now);
+	const { state, sections, changed } = reconcile(current, desiredFiles, ctx.now);
+	const rendered = applyPlaceholders(renderBody(baseBody, sections, state, renderOptions(ctx.config)), {
+		ttl_days: String(ctx.config.ttlDays),
+		dashboard_url: ctx.config.dashboardUrl ?? ""
+	});
+	if (dryRun) {
+		await writeSyncSummary(ctx, state, rendered, {
+			preview: true,
+			issueNumber: issue?.number ?? null,
+			rebuiltClaims,
+			releasedByView
 		});
+		return;
+	}
+	if (!issue) {
 		const number = await ctx.api.createIssue({
 			title: ctx.config.issue.title,
-			body,
+			body: rendered,
 			labels: [ctx.config.issue.label]
 		});
-		core.info(`created tracker issue #${number}`);
+		core.setOutput("issue-url", `https://github.com/${ctx.repo.owner}/${ctx.repo.repo}/issues/${number}`);
+		await writeSyncSummary(ctx, state, rendered, {
+			preview: false,
+			issueNumber: number,
+			rebuiltClaims,
+			releasedByView
+		});
 		return;
 	}
-	const current = parseState(issue.body ?? "");
-	if (!current) throw new Error(`tracker issue #${issue.number} has no readable state block`);
-	const releasedByView = applyViewEdits(current, issue.body ?? "", ctx.now);
-	if (releasedByView > 0) core.info(`manual view edits released ${releasedByView} claim(s)`);
-	const { state, sections, changed } = reconcile(current, desiredFiles, ctx.now);
-	if (!changed) {
+	if (!changed && rebuiltClaims === 0) {
 		core.info(`tracker issue #${issue.number} is up to date`);
+		core.setOutput("issue-url", `https://github.com/${ctx.repo.owner}/${ctx.repo.repo}/issues/${issue.number}`);
 		return;
 	}
-	const body = renderBody(issue.body ?? template, sections, state, renderOptions(ctx.config));
-	await ctx.api.updateIssueBody(issue.number, body);
-	core.info(`updated tracker issue #${issue.number}`);
+	await ctx.api.updateIssueBody(issue.number, rendered);
+	core.setOutput("issue-url", `https://github.com/${ctx.repo.owner}/${ctx.repo.repo}/issues/${issue.number}`);
+	await writeSyncSummary(ctx, state, rendered, {
+		preview: false,
+		issueNumber: issue.number,
+		rebuiltClaims,
+		releasedByView
+	});
+}
+/** 状态块损坏时的自愈：从认领评论回放重建，并告知 contributors 重建结果 */
+async function rebuildTrackerState(ctx, issueNumber, files) {
+	core.warning(`tracker issue #${issueNumber} state block is unreadable — rebuilding from claim comments`);
+	const { claims, skippedBot } = rebuildClaimsFromComments(await ctx.api.listComments(issueNumber), files, ctx.config);
+	await ctx.api.addComment(issueNumber, `♻️ 认领状态块已损坏，已从认领评论重建 ${claims.length} 条活跃认领` + (skippedBot > 0 ? `（忽略 ${skippedBot} 条 bot 评论）` : "") + "。如有遗漏请重新认领。");
+	return {
+		version: 1,
+		files,
+		claims
+	};
+}
+async function writeSyncSummary(ctx, state, rendered, info) {
+	let body = `**${info.preview ? "🔍 模板预览（dry-run，未写入任何内容）" : "🤖 认领看板已更新"}**\n\n`;
+	if (info.preview) {
+		body += "```markdown\n";
+		body += rendered.length > 12e3 ? `${rendered.slice(0, 12e3)}\n…（预览截断）` : rendered;
+		body += "\n```\n\n";
+	} else {
+		body += `- 认领 issue：${info.issueNumber ?? "（未找到）"}\n`;
+		body += `- 待翻译条目：${state.files.length}\n`;
+	}
+	const notes = [];
+	if (info.releasedByView > 0) notes.push(`管理员手动取消勾选 ${info.releasedByView} 条，已释放`);
+	if (info.rebuiltClaims > 0) notes.push(`状态块损坏，已自愈重建 ${info.rebuiltClaims} 条认领`);
+	if (notes.length > 0) body += `- ${notes.join("；")}\n`;
+	await writeStepSummary(body);
 }
 //#endregion
 //#region src/modes/index.ts
+/** 写入 GitHub Step Summary；环境不支持时降级为日志，不失败 */
+async function writeStepSummary(content) {
+	try {
+		await core.summary.addRaw(content).write();
+	} catch (error) {
+		core.warning(`step summary unavailable: ${String(error)}`);
+	}
+}
 async function runMode(inputs) {
 	const repo = repoFromEnv();
 	const ctx = {
@@ -842,7 +985,8 @@ async function main() {
 		mode: core.getInput("mode", { required: true }),
 		token: core.getInput("token"),
 		statusJson: core.getInput("status-json"),
-		configPath: core.getInput("config-path")
+		configPath: core.getInput("config-path"),
+		dryRun: core.getBooleanInput("dry-run") ? "true" : "false"
 	}));
 }
 main().catch((error) => {

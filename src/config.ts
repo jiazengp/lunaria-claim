@@ -13,6 +13,8 @@ export interface ActionInputs {
   token: string;
   statusJsonPath: string;
   configPath: string;
+  /** sync：只渲染并汇报到 Step Summary，不写入任何东西 */
+  dryRun: boolean;
 }
 
 export const ClaimConfigSchema = z.object({
@@ -52,6 +54,7 @@ export function parseInputs(raw: Record<string, string>): ActionInputs {
     token,
     statusJsonPath: raw.statusJson || './dist/lunaria/status.json',
     configPath: raw.configPath || '.github/lunaria-claim.yml',
+    dryRun: raw.dryRun === 'true',
   };
 }
 

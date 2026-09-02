@@ -1,8 +1,8 @@
 import type { ClaimConfig } from './config.js';
 import { message } from './messages.js';
-import { activeClaims, type Claim, fileKey, type TrackerState } from './model.js';
+import { activeClaims, type Claim, fileKey, type TrackedFile, type TrackerState } from './model.js';
 import { parseViewCheckboxes } from './render.js';
-import type { ResolutionEntry, ResolutionFailure } from './resolve.js';
+import { type ResolutionEntry, type ResolutionFailure, resolveTargets } from './resolve.js';
 import { escapeRegExp } from './utils.js';
 
 export type ClaimCommand =
@@ -142,6 +142,75 @@ export function applyViewEdits(state: TrackerState, body: string, now: Date): nu
     released++;
   }
   return released;
+}
+
+export interface RawComment {
+  id: number;
+  user: string;
+  createdAt: string;
+  htmlUrl: string;
+  body: string;
+}
+
+/**
+ * 状态块损坏时的尽力自愈：按时间顺序回放评论里的 /claim、/release 命令，
+ * 重建活跃认领。返回值为空时调用方应放弃（评论里没有任何可识别的认领）。
+ */
+export function rebuildClaimsFromComments(
+  comments: readonly RawComment[],
+  files: readonly TrackedFile[],
+  config: Pick<ClaimConfig, 'strictClaimSyntax' | 'lenientKeywords'>,
+): { claims: Claim[]; skippedBot: number } {
+  const skippedBot = comments.filter((comment) => comment.user.endsWith('[bot]')).length;
+  const pending = new Map<
+    string,
+    {
+      user: string;
+      claimedAt: string;
+      commentId: number;
+      commentUrl: string;
+      path: string;
+      locale: string;
+    }
+  >();
+  const known = files.map((file) => file.sharedPath);
+  for (const comment of comments) {
+    if (comment.user.endsWith('[bot]')) continue;
+    const commands = parseClaimComment(comment.body);
+    const claimTokens = commands.filter((c) => c.kind === 'claim').flatMap((c) => c.paths);
+    const releaseTokens = commands.filter((c) => c.kind === 'release').flatMap((c) => c.paths);
+    if (
+      claimTokens.length === 0 &&
+      !config.strictClaimSyntax &&
+      hasIntent(comment.body, config.lenientKeywords)
+    ) {
+      claimTokens.push(...extractKnownPaths(comment.body, known));
+    }
+    const { entries } = resolveTargets(claimTokens, { version: 1, files: [...files], claims: [] });
+    for (const entry of entries) {
+      for (const file of entry.files) {
+        const key = `${comment.user}::${fileKey(file.locale, file.sharedPath)}`;
+        if (!pending.has(key)) {
+          pending.set(key, {
+            user: comment.user,
+            claimedAt: comment.createdAt,
+            commentId: comment.id,
+            commentUrl: comment.htmlUrl,
+            path: file.sharedPath,
+            locale: file.locale,
+          });
+        }
+      }
+    }
+    const releases = resolveTargets(releaseTokens, { version: 1, files: [...files], claims: [] });
+    for (const entry of releases.entries) {
+      for (const file of entry.files) {
+        pending.delete(`${comment.user}::${fileKey(file.locale, file.sharedPath)}`);
+      }
+    }
+  }
+  const claims: Claim[] = [...pending.values()].map((value) => ({ ...value }));
+  return { claims, skippedBot };
 }
 
 export interface ComposeRepliesInput {

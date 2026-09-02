@@ -1,9 +1,19 @@
+import * as core from '@actions/core';
 import { type ActionInputs, type ClaimConfig, loadConfig, repoFromEnv } from '../config.js';
 import { createGitHubApi, type GitHubApi } from '../github.js';
 import { runClaim } from './claim.js';
 import { runExpire } from './expire.js';
 import { runLinkPr } from './link-pr.js';
 import { runSync } from './sync.js';
+
+/** 写入 GitHub Step Summary；环境不支持时降级为日志，不失败 */
+export async function writeStepSummary(content: string): Promise<void> {
+  try {
+    await core.summary.addRaw(content).write();
+  } catch (error) {
+    core.warning(`step summary unavailable: ${String(error)}`);
+  }
+}
 
 export interface ModeContext {
   inputs: ActionInputs;

@@ -13,7 +13,7 @@ import { activeClaims, fileKey, groupByLocale, type TrackerState } from '../mode
 import { renderBody, renderOptions } from '../render.js';
 import { resolveTargets } from '../resolve.js';
 import { parseState } from '../state.js';
-import type { ModeContext } from './index.js';
+import { type ModeContext, writeStepSummary } from './index.js';
 
 interface IssueCommentEvent {
   comment: {
@@ -124,6 +124,17 @@ export async function runClaim(ctx: ModeContext): Promise<void> {
   }
   core.info(
     `claim processing done: ${entries.length} entry(ies), ${failures.length} failed, changed=${changed}`,
+  );
+  await writeStepSummary(
+    [
+      `**🤖 认领处理（issue #${event.issue.number}）**`,
+      `- 认领：${application.created} 条；跳过 ${application.skipped.length} 条冲突；失败 ${failures.length} 条`,
+      releasedAny ? `- 主动放弃：${releaseTokens.length} 个目标` : null,
+      replies.length > 0 ? `- 回复：${replies.length} 条提示评论` : null,
+      changed ? '- body 已更新' : '- body 无变化',
+    ]
+      .filter((line): line is string => line !== null)
+      .join('\n'),
   );
 }
 

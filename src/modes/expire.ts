@@ -4,7 +4,7 @@ import { message } from '../messages.js';
 import { groupByLocale } from '../model.js';
 import { renderBody, renderOptions } from '../render.js';
 import { parseState } from '../state.js';
-import type { ModeContext } from './index.js';
+import { type ModeContext, writeStepSummary } from './index.js';
 
 export async function runExpire(ctx: ModeContext): Promise<void> {
   const issue = await ctx.api.findTrackerIssue(ctx.config.issue.label);
@@ -41,4 +41,12 @@ export async function runExpire(ctx: ModeContext): Promise<void> {
   const body = renderBody(issue.body, groupByLocale(state.files), state, renderOptions(ctx.config));
   await ctx.api.updateIssueBody(issue.number, body);
   core.info(`released ${expired.length} expired claim(s) on issue #${issue.number}`);
+  await writeStepSummary(
+    `**⏰ 超期清扫（issue #${issue.number}）**
+
+- 释放：${expired.length} 条超期认领
+` +
+      `- 已发提醒评论：${expired.length} 条
+`,
+  );
 }

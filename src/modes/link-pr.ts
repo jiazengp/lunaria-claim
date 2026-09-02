@@ -5,7 +5,7 @@ import { message } from '../messages.js';
 import { activeClaims, fileKey, groupByLocale, type TrackerState } from '../model.js';
 import { renderBody, renderOptions } from '../render.js';
 import { parseState } from '../state.js';
-import type { ModeContext } from './index.js';
+import { type ModeContext, writeStepSummary } from './index.js';
 
 interface PullRequestEvent {
   action: 'opened' | 'synchronize' | 'closed';
@@ -64,6 +64,12 @@ export async function runLinkPr(ctx: ModeContext): Promise<void> {
   );
   await ctx.api.updateIssueBody(issue.number, updated);
   core.info(`linked PR #${pr.number} to ${linked.length} claim(s), expiry frozen`);
+  await writeStepSummary(
+    `**🔗 PR 关联（PR #${pr.number}）**
+
+- 已关联 ${linked.length} 条认领，过期计时已冻结，
+- body 已更新。`,
+  );
 }
 
 async function handleClosed(
@@ -96,4 +102,9 @@ async function handleClosed(
     message(ctx.config, 'pr_closed', { user: pr.user.login, paths: released.join('、') }),
   );
   core.info(`released ${released.length} claim(s) after PR #${pr.number} closed unmerged`);
+  await writeStepSummary(
+    `**↩️ PR 关闭未合并（PR #${pr.number}）**
+
+- 释放 ${released.length} 条认领并回复提醒。`,
+  );
 }
