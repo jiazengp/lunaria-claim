@@ -9,5 +9,6 @@ strictClaimSyntax: false       # 为 true 时只接受 /claim 命令，忽略宽
 # lenientKeywords: [认领, 领取, claim, 我来, 接单]   # 宽松模式的意图关键词
 collapseThreshold: 30          # 单个语言区块超过该条数后折叠显示
 # fileListStyle: tree           # 清单展示：tree 按目录嵌套（默认），flat 平铺
+# templatePath: .github/lunaria-claim.md   # issue body 模板文件位置（默认即可）
 # dashboardUrl: https://example.com/lunaria/       # 可选，填入模板的 {{dashboard_url}}
 messages: {}                   # 覆盖 bot 文案，key 见 docs/quick-start.md「配置参考」

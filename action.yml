@@ -20,9 +20,6 @@ inputs:
   config-path:
     description: 'Path to the lunaria-claim.yml config file'
     default: '.github/lunaria-claim.yml'
-  template-path:
-    description: 'Path to the issue body template (sync mode only)'
-    default: '.github/lunaria-claim.md'
 
 runs:
   using: 'node24'

@@ -13,7 +13,6 @@ export interface ActionInputs {
   token: string;
   statusJsonPath: string;
   configPath: string;
-  templatePath: string;
 }
 
 export const ClaimConfigSchema = z.object({
@@ -35,6 +34,8 @@ export const ClaimConfigSchema = z.object({
   collapseThreshold: z.number().int().positive().default(30),
   /** 清单展示：tree 按目录嵌套，flat 平铺 */
   fileListStyle: FileListStyleSchema.default('tree'),
+  /** issue body 模板文件位置，默认 .github/lunaria-claim.md */
+  templatePath: z.string().default('.github/lunaria-claim.md'),
   dashboardUrl: z.string().optional(),
   messages: z.record(z.string(), z.string()).default({}),
 });
@@ -51,7 +52,6 @@ export function parseInputs(raw: Record<string, string>): ActionInputs {
     token,
     statusJsonPath: raw.statusJson || './dist/lunaria/status.json',
     configPath: raw.configPath || '.github/lunaria-claim.yml',
-    templatePath: raw.templatePath || '.github/lunaria-claim.md',
   };
 }
 

@@ -8,7 +8,6 @@ async function main(): Promise<void> {
     token: core.getInput('token'),
     statusJson: core.getInput('status-json'),
     configPath: core.getInput('config-path'),
-    templatePath: core.getInput('template-path'),
   });
   await runMode(inputs);
 }

@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import * as core from '@actions/core';
+import { applyViewEdits } from '../claims.js';
 import { readLunariaStatus, toTrackedFiles } from '../lunaria.js';
 import { groupByLocale, type TrackerState } from '../model.js';
 import { reconcile } from '../reconcile.js';
@@ -8,11 +9,11 @@ import { parseState } from '../state.js';
 import type { ModeContext } from './index.js';
 
 export async function runSync(ctx: ModeContext): Promise<void> {
-  const { statusJsonPath, templatePath } = ctx.inputs;
+  const { statusJsonPath } = ctx.inputs;
   if (!existsSync(statusJsonPath)) {
     throw new Error(`status.json not found at ${statusJsonPath} — run \`lunaria build\` first`);
   }
-  const template = readFileSync(templatePath, 'utf-8');
+  const template = readFileSync(ctx.config.templatePath, 'utf-8');
   const status = readLunariaStatus(statusJsonPath);
   const locales = [...new Set(status.flatMap((item) => Object.keys(item.localizations)))];
   const desiredFiles = toTrackedFiles(status, locales);
@@ -42,6 +43,10 @@ export async function runSync(ctx: ModeContext): Promise<void> {
   const current = parseState(issue.body ?? '');
   if (!current) {
     throw new Error(`tracker issue #${issue.number} has no readable state block`);
+  }
+  const releasedByView = applyViewEdits(current, issue.body ?? '', ctx.now);
+  if (releasedByView > 0) {
+    core.info(`manual view edits released ${releasedByView} claim(s)`);
   }
   const { state, sections, changed } = reconcile(current, desiredFiles, ctx.now);
   if (!changed) {

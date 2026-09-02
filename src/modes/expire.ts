@@ -1,5 +1,5 @@
 import * as core from '@actions/core';
-import { findExpiredClaims } from '../claims.js';
+import { applyViewEdits, findExpiredClaims } from '../claims.js';
 import { message } from '../messages.js';
 import { groupByLocale } from '../model.js';
 import { renderBody, renderOptions } from '../render.js';
@@ -15,6 +15,10 @@ export async function runExpire(ctx: ModeContext): Promise<void> {
   const state = parseState(issue.body);
   if (!state) {
     throw new Error(`tracker issue #${issue.number} has no readable state block`);
+  }
+  const releasedByView = applyViewEdits(state, issue.body, ctx.now);
+  if (releasedByView > 0) {
+    core.info(`manual view edits released ${releasedByView} claim(s) before expiry sweep`);
   }
   const expired = findExpiredClaims(state, ctx.now, ctx.config.ttlDays);
   if (expired.length === 0) {

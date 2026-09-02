@@ -1,5 +1,12 @@
 import * as core from '@actions/core';
-import { applyClaimEntries, extractKnownPaths, hasIntent, parseClaimComment } from '../claims.js';
+import {
+  applyClaimEntries,
+  applyViewEdits,
+  composeClaimReplies,
+  extractKnownPaths,
+  hasIntent,
+  parseClaimComment,
+} from '../claims.js';
 import { readEventPayload } from '../event.js';
 import { message } from '../messages.js';
 import { activeClaims, fileKey, groupByLocale, type TrackerState } from '../model.js';
@@ -36,6 +43,10 @@ export async function runClaim(ctx: ModeContext): Promise<void> {
   if (!state) {
     throw new Error(`tracker issue #${issue.number} has no readable state block`);
   }
+  const releasedByView = applyViewEdits(state, issue.body, ctx.now);
+  if (releasedByView > 0) {
+    core.info(`manual view edits released ${releasedByView} claim(s) before claim processing`);
+  }
 
   const body = event.comment.body;
   const commands = parseClaimComment(body);
@@ -57,16 +68,6 @@ export async function runClaim(ctx: ModeContext): Promise<void> {
   let releasedAny = false;
 
   const { entries, failures } = resolveTargets([...claimTokens, ...lenientTokens], state);
-  for (const failure of failures) {
-    replies.push(
-      failure.reason === 'ambiguous'
-        ? message(ctx.config, 'ambiguous', {
-            token: failure.token,
-            candidates: failure.candidates.join('、'),
-          })
-        : message(ctx.config, 'unknown_file', { token: failure.token }),
-    );
-  }
   const application = applyClaimEntries(
     state,
     entries,
@@ -76,45 +77,14 @@ export async function runClaim(ctx: ModeContext): Promise<void> {
     event.comment.html_url,
   );
   claimedAny = application.created > 0;
-  // 目录级跳过聚合成一条提示；单文件跳过保持逐条 duplicate 提示
-  const dirSkips = new Map<
-    string,
-    { list: (typeof application.skipped)[number][]; total: number }
-  >();
-  for (const skipped of application.skipped) {
-    if (skipped.dir) {
-      const bucket = dirSkips.get(skipped.dir) ?? { list: [], total: 0 };
-      bucket.list.push(skipped);
-      dirSkips.set(skipped.dir, bucket);
-    } else {
-      replies.push(
-        message(ctx.config, 'duplicate', {
-          path: skipped.path,
-          locale: skipped.locale,
-          claimer: skipped.claimer,
-        }),
-      );
-    }
-  }
-  for (const entry of entries) {
-    if (entry.kind !== 'dir') continue;
-    const bucket = dirSkips.get(entry.token);
-    if (!bucket) continue;
-    bucket.total = entry.files.length;
-    const shown = bucket.list
-      .slice(0, 3)
-      .map((skip) => `\`${skip.path}\`（@${skip.claimer}）`)
-      .join('、');
-    const more = bucket.list.length > 3 ? ` 等 ${bucket.list.length} 个` : '';
-    replies.push(
-      message(ctx.config, 'dir_skipped', {
-        dir: entry.token,
-        claimed: String(bucket.total - bucket.list.length),
-        skippedCount: String(bucket.list.length),
-        skipped: shown + more,
-      }),
-    );
-  }
+  replies.push(
+    ...composeClaimReplies({
+      entries,
+      failures,
+      skipped: application.skipped,
+      config: ctx.config,
+    }),
+  );
   for (const token of releaseTokens) {
     const release = resolveTargets([token], state);
     for (const failure of release.failures) {

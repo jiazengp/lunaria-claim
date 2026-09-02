@@ -1,4 +1,5 @@
 import * as core from '@actions/core';
+import { applyViewEdits } from '../claims.js';
 import { readEventPayload } from '../event.js';
 import { message } from '../messages.js';
 import { activeClaims, fileKey, groupByLocale, type TrackerState } from '../model.js';
@@ -23,6 +24,10 @@ export async function runLinkPr(ctx: ModeContext): Promise<void> {
   const state = parseState(issue.body);
   if (!state) {
     throw new Error(`tracker issue #${issue.number} has no readable state block`);
+  }
+  const releasedByView = applyViewEdits(state, issue.body, ctx.now);
+  if (releasedByView > 0) {
+    core.info(`manual view edits released ${releasedByView} claim(s) before PR linking`);
   }
 
   if (event.action === 'closed') {
