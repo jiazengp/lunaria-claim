@@ -1,9 +1,9 @@
 import * as core from '@actions/core';
-import { extractKnownPaths, hasIntent, parseClaimComment } from '../claims.js';
+import { applyClaimEntries, extractKnownPaths, hasIntent, parseClaimComment } from '../claims.js';
 import { readEventPayload } from '../event.js';
 import { message } from '../messages.js';
-import { activeClaims, fileKey, groupByLocale } from '../model.js';
-import { renderBody } from '../render.js';
+import { activeClaims, fileKey, groupByLocale, type TrackerState } from '../model.js';
+import { renderBody, renderOptions } from '../render.js';
 import { resolveTargets } from '../resolve.js';
 import { parseState } from '../state.js';
 import type { ModeContext } from './index.js';
@@ -45,12 +45,7 @@ export async function runClaim(ctx: ModeContext): Promise<void> {
     claimTokens.length === 0 &&
     !ctx.config.strictClaimSyntax &&
     hasIntent(body, ctx.config.lenientKeywords);
-  const lenientTokens = lenient
-    ? extractKnownPaths(
-        body,
-        state.files.map((file) => file.sharedPath),
-      )
-    : [];
+  const lenientTokens = lenient ? lenientTargets(body, state) : [];
   if (claimTokens.length === 0 && releaseTokens.length === 0 && lenientTokens.length === 0) {
     core.info('no claim/release intent found, treating as a normal comment');
     return;
@@ -61,7 +56,7 @@ export async function runClaim(ctx: ModeContext): Promise<void> {
   let claimedAny = false;
   let releasedAny = false;
 
-  const { resolved, failures } = resolveTargets([...claimTokens, ...lenientTokens], state);
+  const { entries, failures } = resolveTargets([...claimTokens, ...lenientTokens], state);
   for (const failure of failures) {
     replies.push(
       failure.reason === 'ambiguous'
@@ -72,47 +67,71 @@ export async function runClaim(ctx: ModeContext): Promise<void> {
         : message(ctx.config, 'unknown_file', { token: failure.token }),
     );
   }
-  for (const file of resolved) {
-    const existing = activeClaims(state).find(
-      (claim) => fileKey(claim.locale, claim.path) === fileKey(file.locale, file.sharedPath),
-    );
-    if (existing && existing.user !== user) {
+  const application = applyClaimEntries(
+    state,
+    entries,
+    user,
+    event.comment.created_at,
+    event.comment.id,
+    event.comment.html_url,
+  );
+  claimedAny = application.created > 0;
+  // 目录级跳过聚合成一条提示；单文件跳过保持逐条 duplicate 提示
+  const dirSkips = new Map<
+    string,
+    { list: (typeof application.skipped)[number][]; total: number }
+  >();
+  for (const skipped of application.skipped) {
+    if (skipped.dir) {
+      const bucket = dirSkips.get(skipped.dir) ?? { list: [], total: 0 };
+      bucket.list.push(skipped);
+      dirSkips.set(skipped.dir, bucket);
+    } else {
       replies.push(
         message(ctx.config, 'duplicate', {
-          path: file.sharedPath,
-          locale: file.locale,
-          claimer: existing.user,
+          path: skipped.path,
+          locale: skipped.locale,
+          claimer: skipped.claimer,
         }),
       );
-      continue;
     }
-    if (!existing) {
-      state.claims.push({
-        path: file.sharedPath,
-        locale: file.locale,
-        user,
-        claimedAt: event.comment.created_at,
-        commentId: event.comment.id,
-        commentUrl: event.comment.html_url,
-      });
-    }
-    claimedAny = true;
+  }
+  for (const entry of entries) {
+    if (entry.kind !== 'dir') continue;
+    const bucket = dirSkips.get(entry.token);
+    if (!bucket) continue;
+    bucket.total = entry.files.length;
+    const shown = bucket.list
+      .slice(0, 3)
+      .map((skip) => `\`${skip.path}\`（@${skip.claimer}）`)
+      .join('、');
+    const more = bucket.list.length > 3 ? ` 等 ${bucket.list.length} 个` : '';
+    replies.push(
+      message(ctx.config, 'dir_skipped', {
+        dir: entry.token,
+        claimed: String(bucket.total - bucket.list.length),
+        skippedCount: String(bucket.list.length),
+        skipped: shown + more,
+      }),
+    );
   }
   for (const token of releaseTokens) {
     const release = resolveTargets([token], state);
     for (const failure of release.failures) {
       replies.push(message(ctx.config, 'unknown_file', { token: failure.token }));
     }
-    for (const file of release.resolved) {
-      const own = activeClaims(state).find(
-        (claim) =>
-          claim.user === user &&
-          fileKey(claim.locale, claim.path) === fileKey(file.locale, file.sharedPath),
-      );
-      if (own) {
-        own.releasedAt = ctx.now.toISOString();
-        own.releaseReason = 'voluntary';
-        releasedAny = true;
+    for (const entry of release.entries) {
+      for (const file of entry.files) {
+        const own = activeClaims(state).find(
+          (claim) =>
+            claim.user === user &&
+            fileKey(claim.locale, claim.path) === fileKey(file.locale, file.sharedPath),
+        );
+        if (own) {
+          own.releasedAt = ctx.now.toISOString();
+          own.releaseReason = 'voluntary';
+          releasedAny = true;
+        }
       }
     }
   }
@@ -123,7 +142,7 @@ export async function runClaim(ctx: ModeContext): Promise<void> {
       issue.body,
       groupByLocale(state.files),
       state,
-      ctx.config.collapseThreshold,
+      renderOptions(ctx.config),
     );
     await ctx.api.updateIssueBody(issue.number, updated);
   }
@@ -134,6 +153,18 @@ export async function runClaim(ctx: ModeContext): Promise<void> {
     await ctx.api.reactToComment(event.comment.id, 'confused');
   }
   core.info(
-    `claim processing done: ${resolved.length} resolved, ${failures.length} failed, changed=${changed}`,
+    `claim processing done: ${entries.length} entry(ies), ${failures.length} failed, changed=${changed}`,
   );
+}
+
+/** 宽松模式：先对齐清单里出现的完整 sharedPath，再看目录前缀（如 `src/manual/`） */
+function lenientTargets(body: string, state: TrackerState): string[] {
+  const known = new Set(state.files.map((file) => file.sharedPath));
+  for (const file of state.files) {
+    const parts = file.sharedPath.split('/');
+    for (let i = 1; i < parts.length; i++) {
+      known.add(`${parts.slice(0, i).join('/')}/`);
+    }
+  }
+  return extractKnownPaths(body, [...known]);
 }

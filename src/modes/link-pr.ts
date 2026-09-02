@@ -2,7 +2,7 @@ import * as core from '@actions/core';
 import { readEventPayload } from '../event.js';
 import { message } from '../messages.js';
 import { activeClaims, fileKey, groupByLocale, type TrackerState } from '../model.js';
-import { renderBody } from '../render.js';
+import { renderBody, renderOptions } from '../render.js';
 import { parseState } from '../state.js';
 import type { ModeContext } from './index.js';
 
@@ -55,7 +55,7 @@ export async function runLinkPr(ctx: ModeContext): Promise<void> {
     issue.body,
     groupByLocale(state.files),
     state,
-    ctx.config.collapseThreshold,
+    renderOptions(ctx.config),
   );
   await ctx.api.updateIssueBody(issue.number, updated);
   core.info(`linked PR #${pr.number} to ${linked.length} claim(s), expiry frozen`);
@@ -84,7 +84,7 @@ async function handleClosed(
     core.info('no claims linked to this PR');
     return;
   }
-  const updated = renderBody(body, groupByLocale(state.files), state, ctx.config.collapseThreshold);
+  const updated = renderBody(body, groupByLocale(state.files), state, renderOptions(ctx.config));
   await ctx.api.updateIssueBody(issueNumber, updated);
   await ctx.api.addComment(
     issueNumber,

@@ -2,7 +2,7 @@ import * as core from '@actions/core';
 import { findExpiredClaims } from '../claims.js';
 import { message } from '../messages.js';
 import { groupByLocale } from '../model.js';
-import { renderBody } from '../render.js';
+import { renderBody, renderOptions } from '../render.js';
 import { parseState } from '../state.js';
 import type { ModeContext } from './index.js';
 
@@ -34,12 +34,7 @@ export async function runExpire(ctx: ModeContext): Promise<void> {
       }),
     );
   }
-  const body = renderBody(
-    issue.body,
-    groupByLocale(state.files),
-    state,
-    ctx.config.collapseThreshold,
-  );
+  const body = renderBody(issue.body, groupByLocale(state.files), state, renderOptions(ctx.config));
   await ctx.api.updateIssueBody(issue.number, body);
   core.info(`released ${expired.length} expired claim(s) on issue #${issue.number}`);
 }

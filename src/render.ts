@@ -1,3 +1,4 @@
+import type { FileListStyle } from './config.js';
 import {
   activeClaims,
   type Claim,
@@ -22,6 +23,18 @@ const FILES_REGION_RE = new RegExp(
   `${escapeRegExp(FILES_OPEN)}[\\s\\S]*?${escapeRegExp(FILES_CLOSE)}`,
 );
 
+export interface RenderOptions {
+  collapseThreshold: number;
+  fileListStyle: FileListStyle;
+}
+
+export function renderOptions(config: {
+  collapseThreshold: number;
+  fileListStyle: FileListStyle;
+}): RenderOptions {
+  return { collapseThreshold: config.collapseThreshold, fileListStyle: config.fileListStyle };
+}
+
 export function applyPlaceholders(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (match, key: string) => vars[key] ?? match);
 }
@@ -31,9 +44,9 @@ export function renderBody(
   body: string,
   sections: LocaleSection[],
   state: TrackerState,
-  collapseThreshold: number,
+  options: RenderOptions,
 ): string {
-  const region = renderFilesRegion(sections, state, collapseThreshold);
+  const region = renderFilesRegion(sections, state, options);
   if (!FILES_REGION_RE.test(body)) {
     throw new Error('body is missing the LUNARIA-CLAIM:FILES region markers');
   }
@@ -43,14 +56,14 @@ export function renderBody(
 export function renderFilesRegion(
   sections: LocaleSection[],
   state: TrackerState,
-  collapseThreshold: number,
+  options: RenderOptions,
 ): string {
   const claimsByFile = new Map(
     activeClaims(state).map((claim) => [fileKey(claim.locale, claim.path), claim]),
   );
   const view = sections
     .filter((section) => section.files.length > 0)
-    .map((section) => renderSection(section, claimsByFile, collapseThreshold))
+    .map((section) => renderSection(section, claimsByFile, options))
     .join('\n\n');
   return `${FILES_OPEN}\n${view}\n\n${serializeState(state)}\n${FILES_CLOSE}`;
 }
@@ -58,14 +71,60 @@ export function renderFilesRegion(
 function renderSection(
   section: LocaleSection,
   claimsByFile: Map<string, Claim>,
-  collapseThreshold: number,
+  options: RenderOptions,
 ): string {
-  const lines = section.files.map((file) => renderFileLine(file, claimsByFile));
+  const lines: string[] = [];
+  if (options.fileListStyle === 'tree') {
+    renderTree(buildTree(section.files), 0, lines, claimsByFile);
+  } else {
+    for (const file of section.files) lines.push(renderFileLine(file, claimsByFile));
+  }
   const heading = `### 🌐 ${section.locale}`;
-  if (lines.length > collapseThreshold) {
-    return `${heading}\n\n<details><summary>共 ${lines.length} 个文件待处理（点击展开）</summary>\n\n${lines.join('\n')}\n\n</details>`;
+  if (section.files.length > options.collapseThreshold) {
+    return `${heading}\n\n<details><summary>共 ${section.files.length} 个文件待处理（点击展开）</summary>\n\n${lines.join('\n')}\n\n</details>`;
   }
   return `${heading}\n\n${lines.join('\n')}`;
+}
+
+interface TreeNode {
+  name: string;
+  dirs: Map<string, TreeNode>;
+  files: TrackedFile[];
+}
+
+function buildTree(files: TrackedFile[]): TreeNode {
+  const root: TreeNode = { name: '', dirs: new Map(), files: [] };
+  for (const file of files) {
+    const parts = file.sharedPath.split('/');
+    let node = root;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const segment = parts[i]!;
+      const child = node.dirs.get(segment) ?? { name: segment, dirs: new Map(), files: [] };
+      node.dirs.set(segment, child);
+      node = child;
+    }
+    node.files.push(file);
+  }
+  return root;
+}
+
+/** 目录在前、文件在后，各自按路径排序；叶子始终输出完整 sharedPath，方便整条复制认领 */
+function renderTree(
+  node: TreeNode,
+  depth: number,
+  lines: string[],
+  claimsByFile: Map<string, Claim>,
+): void {
+  const pad = '  '.repeat(depth);
+  const dirs = [...node.dirs.values()].sort((a, b) => a.name.localeCompare(b.name));
+  const files = [...node.files].sort((a, b) => a.sharedPath.localeCompare(b.sharedPath));
+  for (const dir of dirs) {
+    lines.push(`${pad}- \`${dir.name}/\``);
+    renderTree(dir, depth + 1, lines, claimsByFile);
+  }
+  for (const file of files) {
+    lines.push(`${pad}${renderFileLine(file, claimsByFile)}`);
+  }
 }
 
 function renderFileLine(file: TrackedFile, claimsByFile: Map<string, Claim>): string {

@@ -3,7 +3,7 @@ import * as core from '@actions/core';
 import { readLunariaStatus, toTrackedFiles } from '../lunaria.js';
 import { groupByLocale, type TrackerState } from '../model.js';
 import { reconcile } from '../reconcile.js';
-import { applyPlaceholders, renderBody } from '../render.js';
+import { applyPlaceholders, renderBody, renderOptions } from '../render.js';
 import { parseState } from '../state.js';
 import type { ModeContext } from './index.js';
 
@@ -24,7 +24,7 @@ export async function runSync(ctx: ModeContext): Promise<void> {
   if (!issue) {
     const state: TrackerState = { version: 1, files: desiredFiles, claims: [] };
     const body = applyPlaceholders(
-      renderBody(template, groupByLocale(desiredFiles), state, ctx.config.collapseThreshold),
+      renderBody(template, groupByLocale(desiredFiles), state, renderOptions(ctx.config)),
       {
         ttl_days: String(ctx.config.ttlDays),
         dashboard_url: ctx.config.dashboardUrl ?? '',
@@ -48,7 +48,7 @@ export async function runSync(ctx: ModeContext): Promise<void> {
     core.info(`tracker issue #${issue.number} is up to date`);
     return;
   }
-  const body = renderBody(issue.body ?? template, sections, state, ctx.config.collapseThreshold);
+  const body = renderBody(issue.body ?? template, sections, state, renderOptions(ctx.config));
   await ctx.api.updateIssueBody(issue.number, body);
   core.info(`updated tracker issue #${issue.number}`);
 }

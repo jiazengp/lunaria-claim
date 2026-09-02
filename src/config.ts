@@ -5,6 +5,9 @@ import { z } from 'zod';
 export const ModeSchema = z.enum(['sync', 'claim', 'expire', 'link-pr']);
 export type Mode = z.infer<typeof ModeSchema>;
 
+export const FileListStyleSchema = z.enum(['tree', 'flat']);
+export type FileListStyle = z.infer<typeof FileListStyleSchema>;
+
 export interface ActionInputs {
   mode: Mode;
   token: string;
@@ -30,6 +33,8 @@ export const ClaimConfigSchema = z.object({
   lenientKeywords: z.array(z.string()).default(['认领', '领取', 'claim', '我来', '接单']),
   /** 单语言区块超过该条数后用 <details> 折叠 */
   collapseThreshold: z.number().int().positive().default(30),
+  /** 清单展示：tree 按目录嵌套，flat 平铺 */
+  fileListStyle: FileListStyleSchema.default('tree'),
   dashboardUrl: z.string().optional(),
   messages: z.record(z.string(), z.string()).default({}),
 });

@@ -34,13 +34,23 @@ describe('real-world VitePress docs pipeline', () => {
     expect(state.files.some((file) => file.sharedPath.startsWith('.vitepress/'))).toBe(true);
   });
 
-  it('renders a body under GitHub limits and round-trips the state block', () => {
-    const body = applyPlaceholders(renderBody(template, groupByLocale(state.files), state, 30), {
-      ttl_days: '15',
-      dashboard_url: '',
-    });
+  it('renders a tree body under GitHub limits and round-trips the state block', () => {
+    const body = applyPlaceholders(
+      renderBody(template, groupByLocale(state.files), state, {
+        collapseThreshold: 30,
+        fileListStyle: 'tree',
+      }),
+      {
+        ttl_days: '15',
+        dashboard_url: '',
+      },
+    );
     expect(body).toContain('### 🌐 en');
     expect(body).toContain('### 🌐 ja');
+    // 树状：出现目录行，checkbox 行数与清单条目一致（叶子保留完整 sharedPath）
+    expect(body).toContain('- `src/`');
+    const checkboxCount = (body.match(/^ {0,10}- \[[ x]\]/gm) ?? []).length;
+    expect(checkboxCount).toBe(state.files.length);
     expect(body.length).toBeLessThan(65536);
     expect(parseState(body)).toEqual(state);
     expect(body).toContain(serializeState(state));
@@ -54,17 +64,23 @@ describe('real-world VitePress docs pipeline', () => {
     if (!unique?.localizationPath) return;
     const byRepoPath = resolveTargets([unique.localizationPath], state);
     expect(byRepoPath.failures).toEqual([]);
-    expect(byRepoPath.resolved[0]?.sharedPath).toBe(unique.sharedPath);
+    expect(byRepoPath.entries[0]?.kind).toBe('file');
+    expect(byRepoPath.entries[0]?.files[0]?.sharedPath).toBe(unique.sharedPath);
 
     const shared = state.files.find(
       (file) => state.files.filter((other) => other.sharedPath === file.sharedPath).length > 1,
     );
     if (shared) {
       const ambiguous = resolveTargets([shared.sharedPath], state);
-      expect(ambiguous.resolved).toHaveLength(0);
+      expect(ambiguous.entries).toHaveLength(0);
       expect(ambiguous.failures[0]?.reason).toBe('ambiguous');
       const scoped = resolveTargets([`${shared.locale}/${shared.sharedPath}`], state);
-      expect(scoped.resolved).toHaveLength(1);
+      expect(scoped.entries).toHaveLength(1);
     }
+    // 目录认领：真实数据里 src/blog 下应能展开出条目
+    const dir = resolveTargets(['src/blog'], state);
+    expect(dir.failures).toEqual([]);
+    expect(dir.entries[0]?.kind).toBe('dir');
+    expect(dir.entries[0]?.files.length).toBeGreaterThan(0);
   });
 });
