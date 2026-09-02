@@ -17,14 +17,6 @@
 - 宽松认领模式：评论含意图词（`lenientKeywords` 可配）+ 清单路径即可认领
 - bot 文案全部可配置（`messages`：`duplicate` / `unknown_file` / `ambiguous` / `expired` / `pr_closed` / `dir_skipped`）
 - 认领状态自足存储：issue body 内 HTML 注释状态块，评论即账本
-
-### 文档
-
-- 接入指南 [docs/quick-start.md](docs/quick-start.md)（含 Lunaria 配置、灰度上线、配置参考、FAQ）
-- 可直接复制的接入样例（examples：workflow、配置、issue 模板）
-- [README.md](README.md)：项目定位、两步接入、认领协议
-
-### 技术栈
-
-- TypeScript（原生编译器）类型检查 + tsdown 构建（ESM / node24 产物）+ vitest 测试 + biome 检查
-- 入口 `main.cjs`（Actions runner 的 CJS 兼容壳，动态导入 `dist/index.mjs`）
+- 模板支持按语言独立占位符（`{{files_ja}}` 等），多语言区块可自由排版；`{{files}}` 兼容保留
+- 模板文件位置可在配置里指定（`templatePath`，默认 `.github/lunaria-claim.md`）
+- 兼容管理员手动编辑：在 issue 里取消勾选或删除某行，会将该认领按手动释放处理，bot 更新时去掉 @引用并恢复未认领；正文手写内容不会被覆盖

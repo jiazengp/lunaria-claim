@@ -29,10 +29,6 @@ Lunaria 负责告诉你哪些文件还没翻译，lunaria-claim 负责让这些�
 
 本地跑 `npm run ci` 就是一次完整检查（typecheck / lint / test / build）。技术栈是 TypeScript（原生编译器）+ tsdown（ESM / node24 产物）+ vitest；`main.cjs` 是 Actions runner 的 CJS 兼容入口，别动它。发布：把含 `dist/` 的版本提交后，`git tag v1 && git push origin v1`。
 
-## 致谢
-
-本项目的数据源（status.json）和翻译完成判定都来自 [Lunaria](https://lunaria.dev)。
-
 ## License
 
 [MIT](LICENSE)

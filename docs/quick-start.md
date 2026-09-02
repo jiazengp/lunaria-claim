@@ -67,10 +67,15 @@ lunaria-claim 是 JS Action，接入前提是把本仓库发布到 GitHub：
 
 把 [examples/lunaria-claim.yml](examples/lunaria-claim.yml) 放到 `.github/lunaria-claim.yml`，[examples/lunaria-claim.template.md](examples/lunaria-claim.template.md) 放到 `.github/lunaria-claim.md`。
 
-模板里 `<!-- LUNARIA-CLAIM:FILES -->` 与 `<!-- /LUNARIA-CLAIM:FILES -->` 之间的区域由 bot 整体重写，**不要编辑**（示例模板里标记区中的 `{{files}}` 只是示意，实际会被清单渲染结果替换）；区域之外可以随意写。真正会被替换的占位符：
+模板里有两个标记区，都**不要编辑**：`<!-- LUNARIA-CLAIM:STATE v1 -->` 状态块（必须保留），以及 `<!-- LUNARIA-CLAIM:FILES -->` 标记区（旧格式的兼容壳，可留可删）。区域之外的排版自由发挥。真正会被替换的占位符：
+
+> [!NOTE]
+> `STATE` 区是隐藏在正文里的 JSON 账本（在 issue 的 Raw 视图可见）：记录谁认领了什么、何时认领、关联了哪个 PR。你能看到的勾选清单只是它的渲染结果。所以别手动编辑它——误删后 bot 会报 `no readable state block` 并拒绝更新；要改认领请用 `/release` 命令，或直接在清单里取消勾选（bot 会识别为手动释放）。
 
 | 占位符 | 说明 |
 | --- | --- |
+| `{{files_<lang>}}` | 单个语言的清单，`lang` 与 [lunaria.config.json 的 `locales[]`](https://lunaria.dev/configuration/) 里每个 `lang` 字段**完全一致**（不是 `label`；注意大小写与连字符，如 `ja`、`zh-CN`）。可在模板里任意摆放、中间插入说明文字；该语言暂无待翻译文件或代码不匹配时原样保留 |
+| `{{files}}` | 所有语言的清单合并渲染（兼容旧模板的写法） |
 | `{{ttl_days}}` | 配置里的 `ttlDays`，写在"认领后 X 天内提交 PR"之类的提示里 |
 | `{{dashboard_url}}` | 配置里的 `dashboardUrl`，未配置时原样保留 |
 
@@ -112,6 +117,7 @@ src/index.md 我来认领           # 宽松模式：清单中的完整路径 + 
 - **提交 PR**：PR 作者与变更文件匹配到活跃认领时自动关联，清单追加 PR 链接，过期计时冻结。
 - **PR 关闭未合并**：自动释放认领并回复提醒。
 - **超期**：认领后 `ttlDays` 天内无关联 PR，自动释放，并在你认领的那条评论下提醒。
+- **手动编辑兼容**：管理员在 issue 正文里直接取消勾选某个已认领文件（或删掉那一行），bot 下次更新时会把它当作手动释放——去掉后面的 @引用、日期和 PR 链接，恢复未认领；标记区与占位符之外的手写内容不会被覆盖。
 
 ## 配置参考
 
@@ -127,6 +133,7 @@ src/index.md 我来认领           # 宽松模式：清单中的完整路径 + 
 | `lenientKeywords` | `认领 / 领取 / claim / 我来 / 接单` | 宽松模式下判定认领意图的关键词 |
 | `collapseThreshold` | `30` | 单个语言区块超过该条数后用 `<details>` 折叠 |
 | `fileListStyle` | `tree` | 清单展示：`tree` 按目录嵌套，`flat` 平铺 |
+| `templatePath` | `.github/lunaria-claim.md` | issue body 模板文件的位置 |
 | `dashboardUrl` | — | 填入模板的 `{{dashboard_url}}` |
 | `messages` | `{}` | 覆盖 bot 文案，键见下表 |
 
@@ -149,7 +156,6 @@ src/index.md 我来认领           # 宽松模式：清单中的完整路径 + 
 | `token` | `${{ github.token }}` | GitHub API 令牌 |
 | `status-json` | `./dist/lunaria/status.json` | sync 模式读取的 status.json 路径 |
 | `config-path` | `.github/lunaria-claim.yml` | 配置文件路径 |
-| `template-path` | `.github/lunaria-claim.md` | issue body 模板路径 |
 
 ## 常见问题
 
