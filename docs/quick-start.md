@@ -62,7 +62,7 @@
 - `sync.yml`：push 后读取 status.json 对账，也支持手动运行；
 - `claim-bot.yml`：三个 job 按事件自动路由——issue 评论走 `claim`，PR 事件走 `link-pr`，每天定时走 `expire`。**手动运行它 = 立即执行一次超期清扫**。
 
-两个文件已经写好 `jiazengp/lunaria-claim@v1` 的引用，一般不用改；唯一可能要动的是 `sync.yml` 里的 `status-json`，要指到你实际的 status.json 路径。不确定路径的话，本地跑一次 `lunaria build` 看输出位置（默认 `./dist/lunaria/status.json`）。
+两个文件已经写好 `jiazengp/lunaria-claim@v1` 的引用，一般不用改；唯一可能要动的是 `sync.yml` 里的 `status-json`。**默认值 `./dist/lunaria/status.json` 仅为示例，必须与 `lunaria.config.json` 的 `outDir` 对应**——status.json 实际输出在 outDir 下。不确定路径的话，本地跑一次 `lunaria build` 看输出的 Output directory。
 
 > [!NOTE]
 > `claim-bot.yml` 里所有 bot 写操作共用一个并发队列（`concurrency`，`cancel-in-progress: false`），避免"读-改-写"互相覆盖。不要拆成多个 workflow 并发执行。
@@ -74,7 +74,7 @@
 模板里有两个标记区，都**不要编辑**：`<!-- LUNARIA-CLAIM:STATE v1 -->` 状态块（必须保留），以及 `<!-- LUNARIA-CLAIM:FILES -->` 标记区（旧格式的兼容壳，可留可删）。区域之外的排版自由发挥。真正会被替换的占位符：
 
 > [!NOTE]
-> `STATE` 区是隐藏在正文里的 JSON 账本（在 issue 的 Raw 视图可见）：记录谁认领了什么、何时认领、关联了哪个 PR。你能看到的勾选清单只是它的渲染结果。所以别手动编辑它——误删后 bot 会报 `no readable state block` 并拒绝更新；要改认领请用 `/release` 命令，或直接在清单里取消勾选（bot 会识别为手动释放）。
+> `STATE` 区是隐藏在正文里的 JSON 账本（在 issue 的 Raw 视图可见）：记录谁认领了什么、何时认领、关联了哪个 PR。你能看到的勾选清单只是它的渲染结果。**别手动编辑它**——要改认领请用 `/release` 命令，或直接在清单里取消勾选（bot 会识别为手动释放）。万一它被弄坏，sync 会自动从认领评论回放重建并留言说明；重建只保证还原评论里有明确 /claim 命令的认领，遗留问题重新认领即可。
 
 | 占位符 | 说明 |
 | --- | --- |
@@ -101,7 +101,7 @@
 
 ```text
 /claim src/zh/agreement.md    # 标准写法，空格分隔，可一次认领多个文件
-/claim src/manual/            # 目录认领：目录下所有未认领的文件一次认领
+/claim src/manual/            # 目录认领：目录下所有未认领的文件一次认领（tree 展示里的目录行就是完整路径，直接复制即可）
 /claim zh/index.md            # 简写：语言目录 + 文件名
 src/index.md 我来认领           # 宽松模式：清单中的完整路径 + 意图词
 ```
@@ -121,7 +121,7 @@ src/index.md 我来认领           # 宽松模式：清单中的完整路径 + 
 - **提交 PR**：PR 作者与变更文件匹配到活跃认领时自动关联，清单追加 PR 链接，过期计时冻结。
 - **PR 关闭未合并**：自动释放认领并回复提醒。
 - **超期**：认领后 `ttlDays` 天内无关联 PR，自动释放，并在你认领的那条评论下提醒。
-- **手动编辑兼容**：管理员在 issue 正文里直接取消勾选某个已认领文件（或删掉那一行），bot 下次更新时会把它当作手动释放——去掉后面的 @引用、日期和 PR 链接，恢复未认领；标记区与占位符之外的手写内容不会被覆盖。
+- **手动编辑兼容（单向）**：管理员在 issue 正文里取消勾选某个已认领文件（或删掉那一行），bot 下次更新时会把它当作手动释放——去掉后面的 @引用、日期和 PR 链接，恢复未认领；标记区与占位符之外的手写内容不会被覆盖。**反向不存在**：手动勾选一个未认领文件不会被当成认领（状态块里没有认领人信息可补，bot 下次渲染会画回未认领）。
 
 ## 配置参考
 
@@ -158,8 +158,15 @@ src/index.md 我来认领           # 宽松模式：清单中的完整路径 + 
 | --- | --- | --- |
 | `mode` | 必填 | `sync` / `claim` / `expire` / `link-pr` |
 | `token` | `${{ github.token }}` | GitHub API 令牌 |
-| `status-json` | `./dist/lunaria/status.json` | sync 模式读取的 status.json 路径 |
+| `status-json` | `./dist/lunaria/status.json` | sync 模式读取的 status.json 路径（示例值，需与 outDir 对应） |
 | `config-path` | `.github/lunaria-claim.yml` | 配置文件路径 |
+| `dry-run` | `false` | 仅 sync：把将要写入的 body 渲染到 Step Summary 预览，**不写入任何内容**。改模板后先跑一次它验证，再正式运行 |
+
+### Action 输出
+
+| 输出 | 说明 |
+| --- | --- |
+| `issue-url` | 认领 issue 的 URL（sync 模式），站点页面可直接引用 |
 
 ## 常见问题
 

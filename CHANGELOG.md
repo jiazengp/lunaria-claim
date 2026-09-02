@@ -8,6 +8,14 @@
 
 （暂无）
 
+### 新增（1.0.0 之后的未发布改动，归入下一版）
+
+- sync 支持 `dry-run`：渲染预览到 Step Summary，不写入任何内容，便于改模板后先验证
+- 四个模式结束时写 GitHub Step Summary（改了哪几行、哪个 issue、因为什么）
+- sync 输出 `issue-url`，站点页面可引用真实认领 issue
+- 认领状态块损坏时自动自愈：从认领评论回放重建并留言说明
+- `status.json not found` 报错提示检查 `lunaria.config.json` 的 `outDir`
+
 ## [1.0.0] - 2026-09-03
 
 ### 新增

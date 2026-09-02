@@ -6,9 +6,10 @@ import {
   extractKnownPaths,
   findExpiredClaims,
   parseClaimComment,
+  rebuildClaimsFromComments,
 } from '../src/claims.js';
 import { ClaimConfigSchema } from '../src/config.js';
-import type { TrackerState } from '../src/model.js';
+import type { TrackedFile, TrackerState } from '../src/model.js';
 
 describe('parseClaimComment', () => {
   it('parses a single claim command', () => {
@@ -341,5 +342,106 @@ describe('applyViewEdits cross-locale', () => {
     const body = '### 🌐 en\n\n- [x] `src/manual/a.md`';
     expect(applyViewEdits(state, body, new Date('2026-09-02T00:00:00Z'))).toBe(1);
     expect(state.claims[0]?.releaseReason).toBe('manual');
+  });
+});
+
+describe('rebuildClaimsFromComments', () => {
+  const config = ClaimConfigSchema.parse({});
+  const files: TrackedFile[] = [
+    { sharedPath: 'src/index.md', locale: 'en', status: 'missing' },
+    { sharedPath: 'src/index.md', locale: 'ja', status: 'missing' },
+    { sharedPath: 'src/blog/faq.md', locale: 'ja', status: 'missing' },
+  ];
+  const comment = (id: number, user: string, body: string, createdAt = '2026-09-01T00:00:00Z') => ({
+    id,
+    user,
+    createdAt,
+    htmlUrl: `https://example.com/${id}`,
+    body,
+  });
+
+  it('reconstructs an active claim with author and timestamps', () => {
+    const { claims, skippedBot } = rebuildClaimsFromComments(
+      [comment(5, 'alice', '/claim src/blog/faq.md')],
+      files,
+      config,
+    );
+    expect(skippedBot).toBe(0);
+    expect(claims).toEqual([
+      {
+        path: 'src/blog/faq.md',
+        locale: 'ja',
+        user: 'alice',
+        claimedAt: '2026-09-01T00:00:00Z',
+        commentId: 5,
+        commentUrl: 'https://example.com/5',
+      },
+    ]);
+  });
+
+  it('ignores bot comments and counts them', () => {
+    const { claims, skippedBot } = rebuildClaimsFromComments(
+      [comment(1, 'github-actions[bot]', '/claim src/blog/faq.md')],
+      files,
+      config,
+    );
+    expect(claims).toEqual([]);
+    expect(skippedBot).toBe(1);
+  });
+
+  it('applies a later release command in comment order', () => {
+    const { claims } = rebuildClaimsFromComments(
+      [
+        comment(1, 'alice', '/claim src/blog/faq.md'),
+        comment(2, 'alice', '/release src/blog/faq.md', '2026-09-02T00:00:00Z'),
+      ],
+      files,
+      config,
+    );
+    expect(claims).toEqual([]);
+  });
+
+  it('keeps a claim when the release predates it', () => {
+    const { claims } = rebuildClaimsFromComments(
+      [
+        comment(1, 'alice', '/release src/blog/faq.md', '2026-08-30T00:00:00Z'),
+        comment(2, 'alice', '/claim src/blog/faq.md', '2026-09-01T00:00:00Z'),
+      ],
+      files,
+      config,
+    );
+    expect(claims).toHaveLength(1);
+    expect(claims[0]?.commentId).toBe(2);
+  });
+
+  it('expands directory commands', () => {
+    const { claims } = rebuildClaimsFromComments(
+      [comment(1, 'alice', '/claim src/blog')],
+      files,
+      config,
+    );
+    expect(claims).toHaveLength(1);
+    expect(claims[0]?.path).toBe('src/blog/faq.md');
+  });
+
+  it('skips ambiguous paths that span locales', () => {
+    const { claims } = rebuildClaimsFromComments(
+      [comment(1, 'alice', '/claim src/index.md')],
+      files,
+      config,
+    );
+    expect(claims).toEqual([]);
+  });
+
+  it('reconstructs lenient-mode claims only when intent words are present', () => {
+    const freeText = '我来认领 src/blog/faq.md';
+    const lenient = rebuildClaimsFromComments([comment(1, 'alice', freeText)], files, config);
+    expect(lenient.claims).toHaveLength(1);
+
+    const strict = rebuildClaimsFromComments([comment(1, 'alice', freeText)], files, {
+      ...config,
+      strictClaimSyntax: true,
+    });
+    expect(strict.claims).toEqual([]);
   });
 });
