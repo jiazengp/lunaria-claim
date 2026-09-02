@@ -10,7 +10,8 @@ Lunaria 负责告诉你哪些文件还没翻译，lunaria-claim 负责让这些�
 ```markdown
 ### 🌐 ja
 
-- [x] `src/manual/canvas.md` — @alice · 2026-09-01
+- `manual/`
+  - [x] `src/manual/canvas.md` — @alice · 2026-09-01
 - [ ] `src/guide.md` — @bob · 2026-09-02 · [PR](https://github.com/your-org/your-docs/pull/42)
 ```
 
@@ -22,7 +23,7 @@ Lunaria 负责告诉你哪些文件还没翻译，lunaria-claim 负责让这些�
 
 ## 认领
 
-贡献者在 issue 下评论 `/claim 文件路径` 认领，用 `/release 路径` 放弃。提交的 PR 包含认领的文件，bot 自动关联并冻结超期计时；超过 `ttlDays`（默认 15 天）还没提交 PR，认领会自动释放并提醒。
+贡献者在 issue 下评论 `/claim 文件路径` 认领，用 `/release 路径` 放弃。目录也可以一次认领：`/claim src/manual/` 会把目录下未被认领的文件全部认领，已被他人认领的自动跳过。提交的 PR 包含认领的文件，bot 自动关联并冻结超期计时；超过 `ttlDays`（默认 15 天）还没提交 PR，认领会自动释放并提醒。
 
 ## 开发
 

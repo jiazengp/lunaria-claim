@@ -16,7 +16,8 @@
 ```markdown
 ### 🌐 ja
 
-- [x] `src/manual/canvas.md` — @alice · 2026-09-01
+- `manual/`
+  - [x] `src/manual/canvas.md` — @alice · 2026-09-01
 - [ ] `src/guide.md` — @bob · 2026-09-02 · [PR](https://github.com/your-org/your-docs/pull/42)
 ```
 
@@ -91,6 +92,7 @@ lunaria-claim 是 JS Action，接入前提是把本仓库发布到 GitHub：
 
 ```text
 /claim src/zh/agreement.md    # 标准写法，空格分隔，可一次认领多个文件
+/claim src/manual/            # 目录认领：目录下所有未认领的文件一次认领
 /claim zh/index.md            # 简写：语言目录 + 文件名
 src/index.md 我来认领           # 宽松模式：清单中的完整路径 + 意图词
 ```
@@ -98,6 +100,8 @@ src/index.md 我来认领           # 宽松模式：清单中的完整路径 + 
 认领成功会收到 🚀，清单里对应文件标注 `@你 · 日期`。
 
 路径支持三种写法，完全等价：清单里的 sharedPath（`src/index.md`）、仓库真实路径（`src/en/index.md`）、`语言/路径` 简写（`ja/index.md`）。
+
+**目录认领**是把目录展开成文件后逐条认领：其中已被他人认领的文件自动跳过，回复里会聚合提示跳过了哪几个、是谁的；自己已认领的幂等忽略。目录下之后新增的文件不会自动归属，需要另行认领。`/release src/manual/` 同理，释放你在这个目录下的全部认领。
 
 > [!WARNING]
 > sharedPath 跨语言共有时（比如 `src/index.md` 的 en 和 ja 都缺），必须注明语言；bot 拿不准时会列出候选让你选。
@@ -122,6 +126,7 @@ src/index.md 我来认领           # 宽松模式：清单中的完整路径 + 
 | `strictClaimSyntax` | `false` | 为 `true` 时只接受 `/claim` 命令，忽略宽松匹配 |
 | `lenientKeywords` | `认领 / 领取 / claim / 我来 / 接单` | 宽松模式下判定认领意图的关键词 |
 | `collapseThreshold` | `30` | 单个语言区块超过该条数后用 `<details>` 折叠 |
+| `fileListStyle` | `tree` | 清单展示：`tree` 按目录嵌套，`flat` 平铺 |
 | `dashboardUrl` | — | 填入模板的 `{{dashboard_url}}` |
 | `messages` | `{}` | 覆盖 bot 文案，键见下表 |
 
@@ -134,6 +139,7 @@ src/index.md 我来认领           # 宽松模式：清单中的完整路径 + 
 | `ambiguous` | 跨语言路径需要指定 | `{token}` `{candidates}` |
 | `expired` | 超期释放 | `{user}` `{path}` `{locale}` `{ttlDays}` |
 | `pr_closed` | PR 关闭未合并释放 | `{user}` `{paths}` |
+| `dir_skipped` | 目录认领时跳过已被他人认领的文件 | `{dir}` `{claimed}` `{skippedCount}` `{skipped}` |
 
 ## Action 输入参考
 

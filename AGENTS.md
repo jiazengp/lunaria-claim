@@ -15,7 +15,7 @@ Entry: `src/index.ts` reads action inputs → `src/modes/index.ts` builds a `Mod
 Layer rules:
 
 - Only `src/modes/` (plus `src/github.ts` and `src/index.ts`) may do I/O: Octokit, `fs`, `@actions/core`. Modes consume the `GitHubApi` interface from `src/github.ts`, never Octokit directly — add new API calls there.
-- Everything else is pure domain logic and must stay I/O-free so it stays unit-testable: `model.ts` (domain types), `state.ts` (HTML-comment JSON state block), `claims.ts` (claim-comment parsing / expiry), `reconcile.ts` (status.json reconciliation), `resolve.ts` (path resolution: sharedPath / real repo path / `locale/path` shorthand), `render.ts` (issue body), `lunaria.ts` (status.json → TrackedFile), `messages.ts` (bot copy), `config.ts` (zod schemas).
+- Everything else is pure domain logic and must stay I/O-free so it stays unit-testable: `model.ts` (domain types), `state.ts` (HTML-comment JSON state block), `claims.ts` (claim-comment parsing / expiry), `reconcile.ts` (status.json reconciliation), `resolve.ts` (path resolution: sharedPath / real repo path / `locale/path` shorthand / directory prefixes / bare file names), `render.ts` (issue body), `lunaria.ts` (status.json → TrackedFile), `messages.ts` (bot copy), `config.ts` (zod schemas).
 
 Design principles (established in this repo, enforced by tests):
 
