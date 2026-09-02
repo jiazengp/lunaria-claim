@@ -15,6 +15,7 @@
 - sync 输出 `issue-url`，站点页面可引用真实认领 issue
 - 认领状态块损坏时自动自愈：从认领评论回放重建并留言说明
 - `status.json not found` 报错提示检查 `lunaria.config.json` 的 `outDir`
+- bot 系统消息（Step Summary、自愈留言、报错）统一英文；`messages` 默认文案精简为单句并保持中文
 
 ## [1.0.0] - 2026-09-03
 

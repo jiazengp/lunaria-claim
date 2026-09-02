@@ -445,3 +445,28 @@ describe('rebuildClaimsFromComments', () => {
     expect(strict.claims).toEqual([]);
   });
 });
+
+describe('rebuildClaimsFromComments directory release', () => {
+  it('a directory release cancels every claim expanded under it', () => {
+    const files: TrackedFile[] = [
+      { sharedPath: 'src/blog/a.md', locale: 'ja', status: 'missing' },
+      { sharedPath: 'src/blog/b.md', locale: 'ja', status: 'missing' },
+    ];
+    const comment = (id: number, user: string, body: string, createdAt: string) => ({
+      id,
+      user,
+      createdAt,
+      htmlUrl: `https://example.com/${id}`,
+      body,
+    });
+    const { claims } = rebuildClaimsFromComments(
+      [
+        comment(1, 'alice', '/claim src/blog', '2026-09-01T00:00:00Z'),
+        comment(2, 'alice', '/release src/blog', '2026-09-02T00:00:00Z'),
+      ],
+      files,
+      ClaimConfigSchema.parse({}),
+    );
+    expect(claims).toEqual([]);
+  });
+});

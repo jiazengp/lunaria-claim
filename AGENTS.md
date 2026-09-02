@@ -15,7 +15,7 @@ Entry: `src/index.ts` reads action inputs → `src/modes/index.ts` builds a `Mod
 Layer rules:
 
 - Only `src/modes/` (plus `src/github.ts` and `src/index.ts`) may do I/O: Octokit, `fs`, `@actions/core`. Modes consume the `GitHubApi` interface from `src/github.ts`, never Octokit directly — add new API calls there.
-- Everything else is pure domain logic and must stay I/O-free so it stays unit-testable: `model.ts` (domain types), `state.ts` (HTML-comment JSON state block), `claims.ts` (claim-comment parsing / expiry / view-edit reconciliation), `reconcile.ts` (status.json reconciliation), `resolve.ts` (path resolution: sharedPath / real repo path / `locale/path` shorthand / directory prefixes / bare file names), `render.ts` (issue body), `lunaria.ts` (status.json → TrackedFile), `messages.ts` (bot copy), `config.ts` (zod schemas).
+- Everything else is pure domain logic and must stay I/O-free so it stays unit-testable: `model.ts` (domain types), `state.ts` (HTML-comment JSON state block), `claims.ts` (claim-comment parsing / expiry / view-edit reconciliation / state rebuild from comments), `reconcile.ts` (status.json reconciliation), `resolve.ts` (path resolution: sharedPath / real repo path / `locale/path` shorthand / directory prefixes / bare file names), `render.ts` (issue body), `lunaria.ts` (status.json → TrackedFile), `messages.ts` (bot copy), `config.ts` (zod schemas).
 
 Design principles (established in this repo, enforced by tests):
 
@@ -30,6 +30,7 @@ Design principles (established in this repo, enforced by tests):
 - strict TS with `noUncheckedIndexedAccess` — index access returns `T | undefined`.
 - Biome: 2-space indent, 100 line width, single quotes.
 - All bot replies go through `message()` in `src/messages.ts` (`DEFAULT_MESSAGES` + `{placeholder}` vars) so users can override copy via the `messages` config key. New replies need a key there plus coverage in `tests/messages.test.ts`.
+- Copy rules: configurable `DEFAULT_MESSAGES` stay Chinese (short single-sentence, emoji prefix); **non-configurable bot output** (step summaries, self-heal comments, thrown errors) is English. Step summaries follow `**<emoji> <Title>**` + blank line + `- Label: value` lines.
 - New user-configurable values belong in `ClaimConfigSchema` (zod, `src/config.ts`) and must be documented in `docs/quick-start.md` (config reference section) and `examples/lunaria-claim.yml`.
 - Domain model changes (e.g. new `Claim` fields) must keep `TrackerState` version 1 parsing tolerant; bump the state-block version only with a migration story.
 

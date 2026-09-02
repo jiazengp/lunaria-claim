@@ -100,3 +100,11 @@ describe('repoFromEnv', () => {
     expect(() => repoFromEnv()).toThrow();
   });
 });
+
+describe('parseInputs dry-run', () => {
+  it('parses the dry-run flag', () => {
+    expect(parseInputs({ mode: 'sync', token: 't', dryRun: 'true' }).dryRun).toBe(true);
+    expect(parseInputs({ mode: 'sync', token: 't', dryRun: 'false' }).dryRun).toBe(false);
+    expect(parseInputs({ mode: 'sync', token: 't' }).dryRun).toBe(false);
+  });
+});
