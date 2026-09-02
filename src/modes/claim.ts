@@ -127,11 +127,11 @@ export async function runClaim(ctx: ModeContext): Promise<void> {
   );
   await writeStepSummary(
     [
-      `**🤖 认领处理（issue #${event.issue.number}）**`,
-      `- 认领：${application.created} 条；跳过 ${application.skipped.length} 条冲突；失败 ${failures.length} 条`,
-      releasedAny ? `- 主动放弃：${releaseTokens.length} 个目标` : null,
-      replies.length > 0 ? `- 回复：${replies.length} 条提示评论` : null,
-      changed ? '- body 已更新' : '- body 无变化',
+      `**🤖 Claim processing (issue #${event.issue.number})**`,
+      `- Claimed: ${application.created}, skipped: ${application.skipped.length}, failed: ${failures.length}`,
+      releasedAny ? `- Given up: ${releaseTokens.length} target(s)` : null,
+      replies.length > 0 ? `- Replies posted: ${replies.length}` : null,
+      changed ? '- Body updated' : '- Body unchanged',
     ]
       .filter((line): line is string => line !== null)
       .join('\n'),

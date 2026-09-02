@@ -115,9 +115,9 @@ async function rebuildTrackerState(
   const { claims, skippedBot } = rebuildClaimsFromComments(comments, files, ctx.config);
   await ctx.api.addComment(
     issueNumber,
-    `♻️ 认领状态块已损坏，已从认领评论重建 ${claims.length} 条活跃认领` +
-      (skippedBot > 0 ? `（忽略 ${skippedBot} 条 bot 评论）` : '') +
-      '。如有遗漏请重新认领。',
+    `♻️ The tracker state block was unreadable — ${claims.length} active claim(s) rebuilt from claim comments` +
+      (skippedBot > 0 ? ` (${skippedBot} bot comment(s) ignored)` : '') +
+      '. Please re-claim if anything is missing.',
   );
   return { version: 1, files, claims };
 }
@@ -133,23 +133,26 @@ async function writeSyncSummary(
     releasedByView: number;
   },
 ): Promise<void> {
-  const heading = info.preview ? '🔍 模板预览（dry-run，未写入任何内容）' : '🤖 认领看板已更新';
+  const heading = info.preview
+    ? '🔍 Template preview (dry-run — nothing was written)'
+    : '🤖 Tracker board updated';
   let body = `**${heading}**\n\n`;
   if (info.preview) {
     body += '```markdown\n';
-    body += rendered.length > 12000 ? `${rendered.slice(0, 12000)}\n…（预览截断）` : rendered;
+    body +=
+      rendered.length > 12000 ? `${rendered.slice(0, 12000)}\n…(preview truncated)` : rendered;
     body += '\n```\n\n';
   } else {
-    body += `- 认领 issue：${info.issueNumber ?? '（未找到）'}\n`;
-    body += `- 待翻译条目：${state.files.length}\n`;
+    body += `- Tracker issue: ${info.issueNumber ?? 'not found'}\n`;
+    body += `- Entries needing translation: ${state.files.length}\n`;
   }
   const notes: string[] = [];
   if (info.releasedByView > 0) {
-    notes.push(`管理员手动取消勾选 ${info.releasedByView} 条，已释放`);
+    notes.push(`admin unchecked ${info.releasedByView} line(s), released`);
   }
   if (info.rebuiltClaims > 0) {
-    notes.push(`状态块损坏，已自愈重建 ${info.rebuiltClaims} 条认领`);
+    notes.push(`state block corrupted, rebuilt ${info.rebuiltClaims} claim(s) from comments`);
   }
-  if (notes.length > 0) body += `- ${notes.join('；')}\n`;
+  if (notes.length > 0) body += `- ${notes.join('; ')}\n`;
   await writeStepSummary(body);
 }

@@ -42,11 +42,10 @@ export async function runExpire(ctx: ModeContext): Promise<void> {
   await ctx.api.updateIssueBody(issue.number, body);
   core.info(`released ${expired.length} expired claim(s) on issue #${issue.number}`);
   await writeStepSummary(
-    `**⏰ 超期清扫（issue #${issue.number}）**
+    `**⏰ Expiry sweep (issue #${issue.number})**
 
-- 释放：${expired.length} 条超期认领
-` +
-      `- 已发提醒评论：${expired.length} 条
+- Released: ${expired.length} overdue claim(s)
+- Reminder comments posted: ${expired.length}
 `,
   );
 }

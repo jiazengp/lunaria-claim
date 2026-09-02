@@ -65,10 +65,10 @@ export async function runLinkPr(ctx: ModeContext): Promise<void> {
   await ctx.api.updateIssueBody(issue.number, updated);
   core.info(`linked PR #${pr.number} to ${linked.length} claim(s), expiry frozen`);
   await writeStepSummary(
-    `**🔗 PR 关联（PR #${pr.number}）**
+    `**🔗 PR linked (PR #${pr.number})**
 
-- 已关联 ${linked.length} 条认领，过期计时已冻结，
-- body 已更新。`,
+- Linked ${linked.length} claim(s), expiry frozen
+- Body updated.`,
   );
 }
 
@@ -103,8 +103,8 @@ async function handleClosed(
   );
   core.info(`released ${released.length} claim(s) after PR #${pr.number} closed unmerged`);
   await writeStepSummary(
-    `**↩️ PR 关闭未合并（PR #${pr.number}）**
+    `**↩️ PR closed unmerged (PR #${pr.number})**
 
-- 释放 ${released.length} 条认领并回复提醒。`,
+- Released ${released.length} claim(s) and reminded.`,
   );
 }

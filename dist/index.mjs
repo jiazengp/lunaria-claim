@@ -675,11 +675,11 @@ async function runClaim(ctx) {
 	}
 	core.info(`claim processing done: ${entries.length} entry(ies), ${failures.length} failed, changed=${changed}`);
 	await writeStepSummary([
-		`**🤖 认领处理（issue #${event.issue.number}）**`,
-		`- 认领：${application.created} 条；跳过 ${application.skipped.length} 条冲突；失败 ${failures.length} 条`,
-		releasedAny ? `- 主动放弃：${releaseTokens.length} 个目标` : null,
-		replies.length > 0 ? `- 回复：${replies.length} 条提示评论` : null,
-		changed ? "- body 已更新" : "- body 无变化"
+		`**🤖 Claim processing (issue #${event.issue.number})**`,
+		`- Claimed: ${application.created}, skipped: ${application.skipped.length}, failed: ${failures.length}`,
+		releasedAny ? `- Given up: ${releaseTokens.length} target(s)` : null,
+		replies.length > 0 ? `- Replies posted: ${replies.length}` : null,
+		changed ? "- Body updated" : "- Body unchanged"
 	].filter((line) => line !== null).join("\n"));
 }
 /** 宽松模式：先对齐清单里出现的完整 sharedPath，再看目录前缀（如 `src/manual/`） */
@@ -721,10 +721,10 @@ async function runExpire(ctx) {
 	const body = renderBody(issue.body, groupByLocale(state.files), state, renderOptions(ctx.config));
 	await ctx.api.updateIssueBody(issue.number, body);
 	core.info(`released ${expired.length} expired claim(s) on issue #${issue.number}`);
-	await writeStepSummary(`**⏰ 超期清扫（issue #${issue.number}）**
+	await writeStepSummary(`**⏰ Expiry sweep (issue #${issue.number})**
 
-- 释放：${expired.length} 条超期认领
-- 已发提醒评论：${expired.length} 条
+- Released: ${expired.length} overdue claim(s)
+- Reminder comments posted: ${expired.length}
 `);
 }
 //#endregion
@@ -762,10 +762,10 @@ async function runLinkPr(ctx) {
 	const updated = renderBody(issue.body, groupByLocale(state.files), state, renderOptions(ctx.config));
 	await ctx.api.updateIssueBody(issue.number, updated);
 	core.info(`linked PR #${pr.number} to ${linked.length} claim(s), expiry frozen`);
-	await writeStepSummary(`**🔗 PR 关联（PR #${pr.number}）**
+	await writeStepSummary(`**🔗 PR linked (PR #${pr.number})**
 
-- 已关联 ${linked.length} 条认领，过期计时已冻结，
-- body 已更新。`);
+- Linked ${linked.length} claim(s), expiry frozen
+- Body updated.`);
 }
 async function handleClosed(ctx, issueNumber, body, state, pr) {
 	if (pr.merged) {
@@ -789,9 +789,9 @@ async function handleClosed(ctx, issueNumber, body, state, pr) {
 		paths: released.join("、")
 	}));
 	core.info(`released ${released.length} claim(s) after PR #${pr.number} closed unmerged`);
-	await writeStepSummary(`**↩️ PR 关闭未合并（PR #${pr.number}）**
+	await writeStepSummary(`**↩️ PR closed unmerged (PR #${pr.number})**
 
-- 释放 ${released.length} 条认领并回复提醒。`);
+- Released ${released.length} claim(s) and reminded.`);
 }
 //#endregion
 //#region src/lunaria.ts
@@ -929,7 +929,7 @@ async function runSync(ctx) {
 async function rebuildTrackerState(ctx, issueNumber, files) {
 	core.warning(`tracker issue #${issueNumber} state block is unreadable — rebuilding from claim comments`);
 	const { claims, skippedBot } = rebuildClaimsFromComments(await ctx.api.listComments(issueNumber), files, ctx.config);
-	await ctx.api.addComment(issueNumber, `♻️ 认领状态块已损坏，已从认领评论重建 ${claims.length} 条活跃认领` + (skippedBot > 0 ? `（忽略 ${skippedBot} 条 bot 评论）` : "") + "。如有遗漏请重新认领。");
+	await ctx.api.addComment(issueNumber, `♻️ The tracker state block was unreadable — ${claims.length} active claim(s) rebuilt from claim comments` + (skippedBot > 0 ? ` (${skippedBot} bot comment(s) ignored)` : "") + ". Please re-claim if anything is missing.");
 	return {
 		version: 1,
 		files,
@@ -937,19 +937,19 @@ async function rebuildTrackerState(ctx, issueNumber, files) {
 	};
 }
 async function writeSyncSummary(ctx, state, rendered, info) {
-	let body = `**${info.preview ? "🔍 模板预览（dry-run，未写入任何内容）" : "🤖 认领看板已更新"}**\n\n`;
+	let body = `**${info.preview ? "🔍 Template preview (dry-run — nothing was written)" : "🤖 Tracker board updated"}**\n\n`;
 	if (info.preview) {
 		body += "```markdown\n";
-		body += rendered.length > 12e3 ? `${rendered.slice(0, 12e3)}\n…（预览截断）` : rendered;
+		body += rendered.length > 12e3 ? `${rendered.slice(0, 12e3)}\n…(preview truncated)` : rendered;
 		body += "\n```\n\n";
 	} else {
-		body += `- 认领 issue：${info.issueNumber ?? "（未找到）"}\n`;
-		body += `- 待翻译条目：${state.files.length}\n`;
+		body += `- Tracker issue: ${info.issueNumber ?? "not found"}\n`;
+		body += `- Entries needing translation: ${state.files.length}\n`;
 	}
 	const notes = [];
-	if (info.releasedByView > 0) notes.push(`管理员手动取消勾选 ${info.releasedByView} 条，已释放`);
-	if (info.rebuiltClaims > 0) notes.push(`状态块损坏，已自愈重建 ${info.rebuiltClaims} 条认领`);
-	if (notes.length > 0) body += `- ${notes.join("；")}\n`;
+	if (info.releasedByView > 0) notes.push(`admin unchecked ${info.releasedByView} line(s), released`);
+	if (info.rebuiltClaims > 0) notes.push(`state block corrupted, rebuilt ${info.rebuiltClaims} claim(s) from comments`);
+	if (notes.length > 0) body += `- ${notes.join("; ")}\n`;
 	await writeStepSummary(body);
 }
 //#endregion
