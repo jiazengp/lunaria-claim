@@ -16,6 +16,12 @@ const files: TrackedFile[] = [
     localizationPath: 'src/ja/index.md',
   },
   {
+    sharedPath: 'src/blog/index.md',
+    locale: 'en',
+    status: 'missing',
+    localizationPath: 'src/en/blog/index.md',
+  },
+  {
     sharedPath: 'src/manual/canvas.md',
     locale: 'ja',
     status: 'outdated',
@@ -26,21 +32,23 @@ const state: TrackerState = { version: 1, files, claims: [] };
 
 describe('resolveTargets', () => {
   it('resolves a repo path with locale directory', () => {
-    const { resolved, failures } = resolveTargets(['src/en/index.md'], state);
+    const { entries, failures } = resolveTargets(['src/en/index.md'], state);
     expect(failures).toEqual([]);
-    expect(resolved).toHaveLength(1);
-    const first = resolved[0];
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.kind).toBe('file');
+    const first = entries[0]?.files[0];
     expect(first && fileKey(first.locale, first.sharedPath)).toBe('en::src/index.md');
   });
 
   it('resolves a locale-prefixed shorthand', () => {
-    const { resolved, failures } = resolveTargets(['ja/index.md'], state);
+    const { entries, failures } = resolveTargets(['ja/index.md'], state);
     expect(failures).toEqual([]);
-    expect(resolved[0]?.locale).toBe('ja');
+    expect(entries[0]?.files[0]?.locale).toBe('ja');
   });
 
   it('reports ambiguity when a sharedPath spans locales without scoping', () => {
-    const { failures } = resolveTargets(['src/index.md'], state);
+    const { entries, failures } = resolveTargets(['src/index.md'], state);
+    expect(entries).toHaveLength(0);
     expect(failures).toEqual([
       {
         token: 'src/index.md',
@@ -50,15 +58,32 @@ describe('resolveTargets', () => {
     ]);
   });
 
-  it('resolves unique sharedPath directly', () => {
-    const { resolved, failures } = resolveTargets(['src/manual/canvas.md'], state);
+  it('resolves a unique sharedPath directly', () => {
+    const { entries, failures } = resolveTargets(['src/manual/canvas.md'], state);
     expect(failures).toEqual([]);
-    expect(resolved[0]?.locale).toBe('ja');
+    expect(entries[0]?.files[0]?.locale).toBe('ja');
   });
 
   it('normalizes leading ./ and slashes', () => {
-    const { resolved } = resolveTargets(['./src/ja/index.md'], state);
-    expect(resolved[0]?.locale).toBe('ja');
+    const { entries } = resolveTargets(['./src/ja/index.md'], state);
+    expect(entries[0]?.files[0]?.locale).toBe('ja');
+  });
+
+  it('resolves a bare file name when unique', () => {
+    const { entries, failures } = resolveTargets(['canvas.md'], state);
+    expect(failures).toEqual([]);
+    expect(entries[0]?.files[0]?.sharedPath).toBe('src/manual/canvas.md');
+  });
+
+  it('reports ambiguity for a bare name that exists in multiple locales', () => {
+    const { entries, failures } = resolveTargets(['index.md'], state);
+    expect(entries).toHaveLength(0);
+    expect(failures[0]?.reason).toBe('ambiguous');
+    expect(failures[0]?.candidates).toEqual([
+      'src/index.md（en）',
+      'src/index.md（ja）',
+      'src/blog/index.md（en）',
+    ]);
   });
 
   it('reports unknown files', () => {
@@ -66,8 +91,43 @@ describe('resolveTargets', () => {
     expect(failures).toEqual([{ token: 'src/fr/index.md', reason: 'unknown', candidates: [] }]);
   });
 
-  it('dedupes repeated tokens', () => {
-    const { resolved } = resolveTargets(['src/ja/index.md', 'ja/index.md'], state);
-    expect(resolved).toHaveLength(1);
+  it('resolves repeated tokens to the same file (claim application is idempotent)', () => {
+    const { entries } = resolveTargets(['src/ja/index.md', 'ja/index.md'], state);
+    const targets = entries.flatMap((entry) =>
+      entry.files.map((file) => fileKey(file.locale, file.sharedPath)),
+    );
+    expect(targets).toEqual(['ja::src/index.md', 'ja::src/index.md']);
+  });
+
+  describe('directory claims', () => {
+    it('expands a directory token to the files below it', () => {
+      const { entries, failures } = resolveTargets(['src/blog'], state);
+      expect(failures).toEqual([]);
+      expect(entries).toEqual([{ token: 'src/blog', kind: 'dir', files: [files[2]!] }]);
+    });
+
+    it('accepts a trailing slash', () => {
+      const { entries } = resolveTargets(['src/manual/'], state);
+      expect(entries[0]?.kind).toBe('dir');
+      expect(entries[0]?.files[0]?.sharedPath).toBe('src/manual/canvas.md');
+    });
+
+    it('spans locales when files of several locales live under the dir', () => {
+      const { entries } = resolveTargets(['src'], state);
+      expect(entries[0]?.kind).toBe('dir');
+      expect(entries[0]?.files).toHaveLength(4);
+    });
+
+    it('scopes by the locale segment in the real-path form', () => {
+      const { entries } = resolveTargets(['src/ja/manual'], state);
+      expect(entries[0]?.kind).toBe('dir');
+      expect(entries[0]?.files.map((file) => file.locale)).toEqual(['ja']);
+    });
+
+    it('reports unknown for a non-existent directory', () => {
+      const { entries, failures } = resolveTargets(['src/nope'], state);
+      expect(entries).toHaveLength(0);
+      expect(failures[0]?.reason).toBe('unknown');
+    });
   });
 });

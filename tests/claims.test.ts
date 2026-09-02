@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { extractKnownPaths, findExpiredClaims, parseClaimComment } from '../src/claims.js';
+import {
+  applyClaimEntries,
+  extractKnownPaths,
+  findExpiredClaims,
+  parseClaimComment,
+} from '../src/claims.js';
 import type { TrackerState } from '../src/model.js';
 
 describe('parseClaimComment', () => {
@@ -90,5 +95,79 @@ describe('findExpiredClaims', () => {
 
   it('releases only overdue claims without an open PR', () => {
     expect(findExpiredClaims(state, now, 15).map((claim) => claim.path)).toEqual(['a']);
+  });
+});
+
+describe('applyClaimEntries', () => {
+  const files = [
+    { sharedPath: 'src/manual/a.md', locale: 'ja', status: 'missing' as const },
+    { sharedPath: 'src/manual/b.md', locale: 'ja', status: 'missing' as const },
+  ];
+
+  const dirEntry = {
+    token: 'src/manual',
+    kind: 'dir' as const,
+    files,
+  };
+
+  it('claims every unclaimed file in a directory and skips others claims', () => {
+    const state: TrackerState = {
+      version: 1,
+      files,
+      claims: [
+        {
+          path: 'src/manual/a.md',
+          locale: 'ja',
+          user: 'bob',
+          claimedAt: '2026-09-01T00:00:00Z',
+          commentId: 1,
+          commentUrl: 'https://example.com/1',
+        },
+      ],
+    };
+    const application = applyClaimEntries(
+      state,
+      [dirEntry],
+      'alice',
+      '2026-09-02T00:00:00Z',
+      2,
+      'https://example.com/2',
+    );
+    expect(application.created).toBe(1);
+    expect(application.skipped).toEqual([
+      { path: 'src/manual/a.md', locale: 'ja', claimer: 'bob', dir: 'src/manual' },
+    ]);
+    // bob 的认领未被触碰，b.md 以 alice 身份独立入账
+    expect(state.claims).toHaveLength(2);
+    expect(state.claims[0]?.user).toBe('bob');
+    expect(state.claims[1]).toMatchObject({ user: 'alice', path: 'src/manual/b.md' });
+  });
+
+  it('is idempotent for claims already held by the same user', () => {
+    const state: TrackerState = {
+      version: 1,
+      files,
+      claims: [
+        {
+          path: 'src/manual/a.md',
+          locale: 'ja',
+          user: 'alice',
+          claimedAt: '2026-09-01T00:00:00Z',
+          commentId: 1,
+          commentUrl: 'https://example.com/1',
+        },
+      ],
+    };
+    const application = applyClaimEntries(
+      state,
+      [dirEntry],
+      'alice',
+      '2026-09-02T00:00:00Z',
+      2,
+      'https://example.com/2',
+    );
+    expect(application.created).toBe(1); // 只有 b.md 是新的
+    expect(application.skipped).toEqual([]);
+    expect(state.claims).toHaveLength(2);
   });
 });

@@ -8,6 +8,8 @@ export const DEFAULT_MESSAGES: Record<string, string> = {
   expired:
     '⏰ @{user} 认领的 `{path}`（{locale}）已超过 {ttlDays} 天未提交 PR，已自动释放回待认领清单，欢迎之后重新认领。',
   pr_closed: '↩️ @{user} 的 PR 已关闭且未合并，以下认领已释放回清单：{paths}',
+  dir_skipped:
+    '📚 `{dir}` 认领了 {claimed} 个文件；另有 {skippedCount} 个已被他人认领，自动跳过：{skipped}',
 };
 
 export function message(
