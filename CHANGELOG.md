@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+（暂无）
+
+## [1.0.0] - 2026-09-03
+
 ### 新增
 
 - 翻译认领看板核心：基于 Lunaria `status.json` 自动创建/对账认领 issue（`sync`）；评论认领与表情回应（`claim`）；PR 自动关联与关闭未合并自动释放（`link-pr`）；超期自动释放并提醒（`expire`）
