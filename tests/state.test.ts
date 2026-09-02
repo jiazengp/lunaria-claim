@@ -23,3 +23,17 @@ describe('state block', () => {
     expect(parseState('plain body without state')).toBeNull();
   });
 });
+
+describe('state block version guard', () => {
+  it('rejects an unknown state version', () => {
+    const body =
+      '<!-- LUNARIA-CLAIM:STATE v2 -->\n{"version":2,"files":[],"claims":[]}\n<!-- /LUNARIA-CLAIM:STATE -->';
+    expect(parseState(body)).toBeNull();
+  });
+
+  it('rejects structurally wrong state', () => {
+    const body =
+      '<!-- LUNARIA-CLAIM:STATE v1 -->\n{"version":1,"files":"nope","claims":[]}\n<!-- /LUNARIA-CLAIM:STATE -->';
+    expect(parseState(body)).toBeNull();
+  });
+});

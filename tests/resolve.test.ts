@@ -131,3 +131,16 @@ describe('resolveTargets', () => {
     });
   });
 });
+
+describe('file vs directory collision', () => {
+  it('reports ambiguity when a token matches both an exact file and a dir prefix', () => {
+    const colliding: TrackedFile[] = [
+      ...files,
+      { sharedPath: 'src/blog', locale: 'en', status: 'missing' },
+    ];
+    const stateWithCollision: TrackerState = { version: 1, files: colliding, claims: [] };
+    const { entries, failures } = resolveTargets(['src/blog'], stateWithCollision);
+    expect(entries).toHaveLength(0);
+    expect(failures[0]?.reason).toBe('ambiguous');
+  });
+});

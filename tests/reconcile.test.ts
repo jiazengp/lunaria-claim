@@ -43,3 +43,20 @@ describe('reconcile', () => {
     expect(groupByLocale([])).toEqual([]);
   });
 });
+
+describe('reconcile change detection', () => {
+  it('flags changes when new files appear', () => {
+    const { changed } = reconcile(
+      baseState,
+      [...baseState.files, { sharedPath: 'c', locale: 'ko', status: 'missing' }],
+      now,
+    );
+    expect(changed).toBe(true);
+  });
+
+  it("flags changes when a file's status shifts to outdated", () => {
+    const shifted = baseState.files.map((file) => ({ ...file, status: 'outdated' as const }));
+    const { changed } = reconcile(baseState, shifted, now);
+    expect(changed).toBe(true);
+  });
+});
