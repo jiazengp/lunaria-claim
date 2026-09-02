@@ -5,7 +5,7 @@ export const FILES_CLOSE = '<!-- /LUNARIA-CLAIM:FILES -->';
 
 export type FileStatusKind = 'missing' | 'outdated' | 'done';
 
-export type ReleaseReason = 'expired' | 'voluntary' | 'pr-closed' | 'completed';
+export type ReleaseReason = 'expired' | 'voluntary' | 'pr-closed' | 'completed' | 'manual';
 
 export interface TrackedFile {
   /** Lunaria 的跨语言共享标识，例如 `manual/client/canvas` */

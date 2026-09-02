@@ -1,5 +1,8 @@
+import type { ClaimConfig } from './config.js';
+import { message } from './messages.js';
 import { activeClaims, type Claim, fileKey, type TrackerState } from './model.js';
-import type { ResolutionEntry } from './resolve.js';
+import { parseViewCheckboxes } from './render.js';
+import type { ResolutionEntry, ResolutionFailure } from './resolve.js';
 import { escapeRegExp } from './utils.js';
 
 export type ClaimCommand =
@@ -95,8 +98,8 @@ function splitPaths(fragment: string): string[] {
         .replace(/^\[`(.+?)`\]\(.+?\)$/, '$1')
         .replace(/^\[(.+?)\]\(.+?\)$/, '$1')
         .replace(/^[`'"]+/, '')
-        .replace(/[`'"]+$/, '')
-        .replace(/[.,;，。]+$/, ''),
+        // 组合剥离尾部引号与标点：`'a.md'。` → `a.md`
+        .replace(/[`'".,;，。]+$/, ''),
     )
     .filter((token) => token.length > 0 && !token.startsWith('<'));
 }
@@ -118,4 +121,83 @@ export function findExpiredClaims(state: TrackerState, now: Date, ttlDays: numbe
   return activeClaims(state).filter(
     (claim) => !claim.prUrl && now.getTime() - Date.parse(claim.claimedAt) > ttlMs,
   );
+}
+
+/**
+ * 管理员手动编辑兼容：把可见清单里的"取消勾选 / 整行删除"反写回状态，按手动释放处理。
+ * 读 body 时如果连一个语言区块都没解析出来，放弃本次对账（避免误释放）。
+ */
+export function applyViewEdits(state: TrackerState, body: string, now: Date): number {
+  const view = parseViewCheckboxes(body);
+  if (view.length === 0) return 0;
+  const byKey = new Map(
+    view.map((entry) => [fileKey(entry.locale, entry.sharedPath), entry] as const),
+  );
+  let released = 0;
+  for (const claim of activeClaims(state)) {
+    const entry = byKey.get(fileKey(claim.locale, claim.path));
+    if (entry?.checked) continue;
+    claim.releasedAt = now.toISOString();
+    claim.releaseReason = 'manual';
+    released++;
+  }
+  return released;
+}
+
+export interface ComposeRepliesInput {
+  entries: readonly ResolutionEntry[];
+  failures: readonly ResolutionFailure[];
+  skipped: readonly SkippedClaim[];
+  config: ClaimConfig;
+}
+
+/** 把解析/应用结果编排成对认领评论的回复：目录级跳过聚合、单文件跳过逐条、失败映射 */
+export function composeClaimReplies(input: ComposeRepliesInput): string[] {
+  const { entries, failures, skipped, config } = input;
+  const replies: string[] = [];
+  for (const failure of failures) {
+    replies.push(
+      failure.reason === 'ambiguous'
+        ? message(config, 'ambiguous', {
+            token: failure.token,
+            candidates: failure.candidates.join('、'),
+          })
+        : message(config, 'unknown_file', { token: failure.token }),
+    );
+  }
+  const dirSkips = new Map<string, SkippedClaim[]>();
+  for (const item of skipped) {
+    if (item.dir) {
+      const list = dirSkips.get(item.dir) ?? [];
+      list.push(item);
+      dirSkips.set(item.dir, list);
+    } else {
+      replies.push(
+        message(config, 'duplicate', {
+          path: item.path,
+          locale: item.locale,
+          claimer: item.claimer,
+        }),
+      );
+    }
+  }
+  for (const entry of entries) {
+    if (entry.kind !== 'dir') continue;
+    const list = dirSkips.get(entry.token);
+    if (!list) continue;
+    const shown = list
+      .slice(0, 3)
+      .map((skip) => `\`${skip.path}\`（@${skip.claimer}）`)
+      .join('、');
+    const more = list.length > 3 ? ` 等 ${list.length} 个` : '';
+    replies.push(
+      message(config, 'dir_skipped', {
+        dir: entry.token,
+        claimed: String(entry.files.length - list.length),
+        skippedCount: String(list.length),
+        skipped: shown + more,
+      }),
+    );
+  }
+  return replies;
 }
