@@ -1,0 +1,29 @@
+name: 'Lunaria Claim'
+description: >-
+  Manage translation claim issues driven by Lunaria status.json:
+  claim recognition with reactions, TTL expiry release, and PR linking.
+author: 'lunaria-claim contributors'
+branding:
+  icon: 'check-square'
+  color: 'blue'
+
+inputs:
+  mode:
+    description: 'Which mode to run: sync | claim | expire | link-pr'
+    required: true
+  token:
+    description: 'GitHub token used for API calls'
+    default: ${{ github.token }}
+  status-json:
+    description: 'Path to the status.json produced by `lunaria build` (sync mode only)'
+    default: './dist/lunaria/status.json'
+  config-path:
+    description: 'Path to the lunaria-claim.yml config file'
+    default: '.github/lunaria-claim.yml'
+  template-path:
+    description: 'Path to the issue body template (sync mode only)'
+    default: '.github/lunaria-claim.md'
+
+runs:
+  using: 'node24'
+  main: 'main.cjs'

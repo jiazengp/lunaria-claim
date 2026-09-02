@@ -1,0 +1,12 @@
+# 认领看板配置，放在 .github/lunaria-claim.yml
+# 所有字段都有默认值，只写你需要覆盖的即可
+issue:
+  title: '🙋 翻译认领'
+  label: 'lunaria-claim'      # bot 用它定位认领 issue；改名后已有 issue 不会自动迁移
+  perLocale: false             # 按语言拆分子 issue（尚未实现）
+ttlDays: 15                    # 认领后未提交 PR 的超期天数
+strictClaimSyntax: false       # 为 true 时只接受 /claim 命令，忽略宽松匹配
+# lenientKeywords: [认领, 领取, claim, 我来, 接单]   # 宽松模式的意图关键词
+collapseThreshold: 30          # 单个语言区块超过该条数后折叠显示
+# dashboardUrl: https://example.com/lunaria/       # 可选，填入模板的 {{dashboard_url}}
+messages: {}                   # 覆盖 bot 文案，key 见 docs/quick-start.md「配置参考」

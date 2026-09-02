@@ -1,0 +1,1211 @@
+[
+  {
+    "sharedPath": "src/agreement.md",
+    "sourceFile": {
+      "path": "src/zh/agreement.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/agreement.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/agreement.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/blog/[path].md",
+    "sourceFile": {
+      "path": "src/zh/blog/[path].md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/blog/[path].md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/blog/[path].md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/blog/index.md",
+    "sourceFile": {
+      "path": "src/zh/blog/index.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/blog/index.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/blog/index.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/blog/posts/changelog-autotrack.md",
+    "sourceFile": {
+      "path": "src/zh/blog/posts/changelog-autotrack.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": true
+      },
+      "ja": {
+        "isMissing": true
+      }
+    }
+  },
+  {
+    "sharedPath": "src/blog/posts/changelog-client.md",
+    "sourceFile": {
+      "path": "src/zh/blog/posts/changelog-client.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/blog/posts/changelog-client.md"
+      },
+      "ja": {
+        "isMissing": true
+      }
+    }
+  },
+  {
+    "sharedPath": "src/blog/posts/changelog-web.md",
+    "sourceFile": {
+      "path": "src/zh/blog/posts/changelog-web.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/blog/posts/changelog-web.md"
+      },
+      "ja": {
+        "isMissing": true
+      }
+    }
+  },
+  {
+    "sharedPath": "src/blog/posts/hotupdatelog-autotrack.md",
+    "sourceFile": {
+      "path": "src/zh/blog/posts/hotupdatelog-autotrack.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": true
+      },
+      "ja": {
+        "isMissing": true
+      }
+    }
+  },
+  {
+    "sharedPath": "src/blog/posts/hotupdatelog-client.md",
+    "sourceFile": {
+      "path": "src/zh/blog/posts/hotupdatelog-client.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/blog/posts/hotupdatelog-client.md"
+      },
+      "ja": {
+        "isMissing": true
+      }
+    }
+  },
+  {
+    "sharedPath": "src/callback.md",
+    "sourceFile": {
+      "path": "src/zh/callback.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/callback.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/callback.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/community.md",
+    "sourceFile": {
+      "path": "src/zh/community.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/community.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/community.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/credits.md",
+    "sourceFile": {
+      "path": "src/zh/credits.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/credits.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/credits.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/disclaimer.md",
+    "sourceFile": {
+      "path": "src/zh/disclaimer.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/disclaimer.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/disclaimer.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/download-client.md",
+    "sourceFile": {
+      "path": "src/zh/download-client.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/download-client.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/download-client.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/error.md",
+    "sourceFile": {
+      "path": "src/zh/error.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/error.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/error.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/feedback.md",
+    "sourceFile": {
+      "path": "src/zh/feedback.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/feedback.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/feedback.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/friends-links.md",
+    "sourceFile": {
+      "path": "src/zh/friends-links.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/friends-links.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/friends-links.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/index.md",
+    "sourceFile": {
+      "path": "src/zh/index.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/index.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/index.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/join.md",
+    "sourceFile": {
+      "path": "src/zh/join.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/join.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/join.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/client/batch-selection.md",
+    "sourceFile": {
+      "path": "src/zh/manual/client/batch-selection.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/client/batch-selection.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/manual/client/batch-selection.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/client/canvas.md",
+    "sourceFile": {
+      "path": "src/zh/manual/client/canvas.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/client/canvas.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/manual/client/canvas.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/client/easter-egg.md",
+    "sourceFile": {
+      "path": "src/zh/manual/client/easter-egg.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/client/easter-egg.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/manual/client/easter-egg.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/client/framerate.md",
+    "sourceFile": {
+      "path": "src/zh/manual/client/framerate.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/client/framerate.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/manual/client/framerate.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/client/fullscreen-windowed.md",
+    "sourceFile": {
+      "path": "src/zh/manual/client/fullscreen-windowed.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/client/fullscreen-windowed.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/manual/client/fullscreen-windowed.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/client/hide-show-done.md",
+    "sourceFile": {
+      "path": "src/zh/manual/client/hide-show-done.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/client/hide-show-done.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/manual/client/hide-show-done.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/client/index.md",
+    "sourceFile": {
+      "path": "src/zh/manual/client/index.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/client/index.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/manual/client/index.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/client/overlay-mode.md",
+    "sourceFile": {
+      "path": "src/zh/manual/client/overlay-mode.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/client/overlay-mode.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/manual/client/overlay-mode.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/client/position-tracking.md",
+    "sourceFile": {
+      "path": "src/zh/manual/client/position-tracking.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/client/position-tracking.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/manual/client/position-tracking.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/client/save-restore.md",
+    "sourceFile": {
+      "path": "src/zh/manual/client/save-restore.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/client/save-restore.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/manual/client/save-restore.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/faq/accountsafety/acntban.md",
+    "sourceFile": {
+      "path": "src/zh/manual/faq/accountsafety/acntban.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/faq/accountsafety/acntban.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/manual/faq/accountsafety/acntban.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/faq/autoupdate/updater.md",
+    "sourceFile": {
+      "path": "src/zh/manual/faq/autoupdate/updater.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/faq/autoupdate/updater.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/manual/faq/autoupdate/updater.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/faq/cloudsave/verificationissueforoverseasuser.md",
+    "sourceFile": {
+      "path": "src/zh/manual/faq/cloudsave/verificationissueforoverseasuser.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/faq/cloudsave/verificationissueforoverseasuser.md"
+      },
+      "ja": {
+        "isMissing": true
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/faq/instlerror/code2503.md",
+    "sourceFile": {
+      "path": "src/zh/manual/faq/instlerror/code2503.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/faq/instlerror/code2503.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/manual/faq/instlerror/code2503.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/faq/instlerror/missingdll.md",
+    "sourceFile": {
+      "path": "src/zh/manual/faq/instlerror/missingdll.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/faq/instlerror/missingdll.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/manual/faq/instlerror/missingdll.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/faq/launcherror/emptydialog.md",
+    "sourceFile": {
+      "path": "src/zh/manual/faq/launcherror/emptydialog.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/faq/launcherror/emptydialog.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/manual/faq/launcherror/emptydialog.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/faq/launcherror/versioncheck.md",
+    "sourceFile": {
+      "path": "src/zh/manual/faq/launcherror/versioncheck.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/faq/launcherror/versioncheck.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/manual/faq/launcherror/versioncheck.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/faq/login/accountlogin.md",
+    "sourceFile": {
+      "path": "src/zh/manual/faq/login/accountlogin.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/faq/login/accountlogin.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/manual/faq/login/accountlogin.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/manual/faq/login/clientrepeatedly.md",
+    "sourceFile": {
+      "path": "src/zh/manual/faq/login/clientrepeatedly.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/manual/faq/login/clientrepeatedly.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/manual/faq/login/clientrepeatedly.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/privacy.md",
+    "sourceFile": {
+      "path": "src/zh/privacy.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/privacy.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/privacy.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/sitemap.md",
+    "sourceFile": {
+      "path": "src/zh/sitemap.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/sitemap.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/sitemap.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/support-us.md",
+    "sourceFile": {
+      "path": "src/zh/support-us.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/support-us.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/support-us.md"
+      }
+    }
+  },
+  {
+    "sharedPath": "src/translations.md",
+    "sourceFile": {
+      "path": "src/zh/translations.md",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": "src/en/translations.md"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": "src/ja/translations.md"
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/inferred-types.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/inferred-types.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": true
+      },
+      "ja": {
+        "isMissing": true
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/json-types.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/json-types.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": true
+      },
+      "ja": {
+        "isMissing": true
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/utils/regexConverter.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/utils/regexConverter.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": true
+      },
+      "ja": {
+        "isMissing": true
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/404.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/zh/404.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": ".vitepress/locales/en/404.ts"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": ".vitepress/locales/ja/404.ts"
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/aside-links.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/zh/aside-links.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": ".vitepress/locales/en/aside-links.ts"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": ".vitepress/locales/ja/aside-links.ts"
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/changelog.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/zh/changelog.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": ".vitepress/locales/en/changelog.ts"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": ".vitepress/locales/ja/changelog.ts"
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/constants.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/zh/constants.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": ".vitepress/locales/en/constants.ts"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": ".vitepress/locales/ja/constants.ts"
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/docs-feedback.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/zh/docs-feedback.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": true
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": ".vitepress/locales/ja/docs-feedback.ts"
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/footer.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/zh/footer.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": ".vitepress/locales/en/footer.ts"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": ".vitepress/locales/ja/footer.ts"
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/forum.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/zh/forum.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": ".vitepress/locales/en/forum.ts"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": ".vitepress/locales/ja/forum.ts"
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/head.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/zh/head.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": ".vitepress/locales/en/head.ts"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": ".vitepress/locales/ja/head.ts"
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/index.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/zh/index.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": ".vitepress/locales/en/index.ts"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": ".vitepress/locales/ja/index.ts"
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/nav.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/zh/nav.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": ".vitepress/locales/en/nav.ts"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": ".vitepress/locales/ja/nav.ts"
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/payment.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/zh/payment.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": ".vitepress/locales/en/payment.ts"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": ".vitepress/locales/ja/payment.ts"
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/sidebar.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/zh/sidebar.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": ".vitepress/locales/en/sidebar.ts"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": ".vitepress/locales/ja/sidebar.ts"
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/staff.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/zh/staff.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": ".vitepress/locales/en/staff.ts"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": ".vitepress/locales/ja/staff.ts"
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/team.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/zh/team.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": ".vitepress/locales/en/team.ts"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": ".vitepress/locales/ja/team.ts"
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/types.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/zh/types.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": true
+      },
+      "ja": {
+        "isMissing": true
+      }
+    }
+  },
+  {
+    "sharedPath": ".vitepress/locales/ui.ts",
+    "sourceFile": {
+      "path": ".vitepress/locales/zh/ui.ts",
+      "lang": "zh"
+    },
+    "localizations": {
+      "en": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "en",
+        "path": ".vitepress/locales/en/ui.ts"
+      },
+      "ja": {
+        "isMissing": false,
+        "isOutdated": false,
+        "lang": "ja",
+        "path": ".vitepress/locales/ja/ui.ts"
+      }
+    }
+  }
+]

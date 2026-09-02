@@ -1,0 +1,5 @@
+node_modules/
+coverage/
+*.log
+
+# dist/ 是构建产物，但作为 JS Action 的发布惯例需要随仓库提交，故不忽略

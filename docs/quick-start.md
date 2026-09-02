@@ -1,0 +1,168 @@
+# 快速上手
+
+这一页带你完成 lunaria-claim 的接入：发布 Action 仓库、添加 workflow、配置看板、首次运行验证，以及贡献者如何认领文件。按照步骤走，大约十分钟就能跑起来。
+
+## 它是怎么工作的
+
+先看整体流程：
+
+1. 文档仓库的 workflow 里先跑 `lunaria build`，产出一份 `status.json`——它描述哪些翻译缺失、哪些已过期、哪些已完成；
+2. `sync` 模式（push 时触发）读取 `status.json`，创建或对账认领 issue，清单上的每一行就是一次认领；
+3. 贡献者在该 issue 下评论认领，`claim` 模式更新清单并回复；
+4. `expire`（每天定时，默认 UTC 21:00）清扫超期认领，`link-pr`（PR 事件）把 PR 关联到认领。
+
+最终的认领 issue 长这样：
+
+```markdown
+### 🌐 ja
+
+- [x] `src/manual/canvas.md` — @alice · 2026-09-01
+- [ ] `src/guide.md` — @bob · 2026-09-02 · [PR](https://github.com/your-org/your-docs/pull/42)
+```
+
+认领状态存在 issue body 的 HTML 注释状态块里，不依赖事件顺序：
+
+> [!NOTE]
+> `sync` 每次以 `status.json` 全量对账，`claim` / `link-pr` 只做增量修改；事件处理丢失时，下一次 push 会全量修正。翻译是否完成同样以 `status.json` 为准。
+
+## 前置条件
+
+文档仓库需要已经配置好 Lunaria：有 `lunaria.config.json`，本地能跑 `npx lunaria build`。还没配置的话，先按 [Lunaria 文档](https://lunaria.dev/getting-started/) 配置，最小配置大致如下：
+
+```jsonc
+{
+  // 源语言
+  "defaultLocale": { "label": "English", "lang": "en" },
+  // 目标语言，对应清单里的区块
+  "locales": [{ "label": "简体中文", "lang": "zh" }],
+  // status.json 的输出位置
+  "outDir": "./dist/lunaria"
+}
+```
+
+## 第 1 步：发布 Action 仓库
+
+lunaria-claim 是 JS Action，接入前提是把本仓库发布到 GitHub：
+
+1. 推到 GitHub（`dist/` 已随仓库提交，无需构建）；
+2. 打好 tag：`git tag v1 && git push origin v1`。
+
+> [!TIP]
+> 改了 `src/` 之后，记得本地跑 `npm run ci`、把新的 `dist/` 一起提交、再更新 tag——发布版运行的是 `dist/`，不是 `src/`。
+
+## 第 2 步：添加 workflow
+
+把 [examples/workflows/sync.yml](examples/workflows/sync.yml) 和 [examples/workflows/claim-bot.yml](examples/workflows/claim-bot.yml) 拷到 `.github/workflows/`：
+
+- `sync.yml`：push 后读取 status.json 对账，也支持手动运行；
+- `claim-bot.yml`：三个 job 按事件自动路由——issue 评论走 `claim`，PR 事件走 `link-pr`，每天定时走 `expire`。
+
+两个文件已经写好 `jiazengp/lunaria-claim@v1` 的引用，一般不用改；唯一可能要动的是 `sync.yml` 里的 `status-json`，要指到你实际的 status.json 路径。不确定路径的话，本地跑一次 `lunaria build` 看输出位置（默认 `./dist/lunaria/status.json`）。
+
+> [!NOTE]
+> `claim-bot.yml` 里所有 bot 写操作共用一个并发队列（`concurrency`，`cancel-in-progress: false`），避免"读-改-写"互相覆盖。不要拆成多个 workflow 并发执行。
+
+## 第 3 步：添加配置和模板
+
+把 [examples/lunaria-claim.yml](examples/lunaria-claim.yml) 放到 `.github/lunaria-claim.yml`，[examples/lunaria-claim.template.md](examples/lunaria-claim.template.md) 放到 `.github/lunaria-claim.md`。
+
+模板里 `<!-- LUNARIA-CLAIM:FILES -->` 与 `<!-- /LUNARIA-CLAIM:FILES -->` 之间的区域由 bot 整体重写，**不要编辑**（示例模板里标记区中的 `{{files}}` 只是示意，实际会被清单渲染结果替换）；区域之外可以随意写。真正会被替换的占位符：
+
+| 占位符 | 说明 |
+| --- | --- |
+| `{{ttl_days}}` | 配置里的 `ttlDays`，写在"认领后 X 天内提交 PR"之类的提示里 |
+| `{{dashboard_url}}` | 配置里的 `dashboardUrl`，未配置时原样保留 |
+
+## 第 4 步：首次运行与灰度上线
+
+先灰度，再放开：
+
+1. 把 `.github/lunaria-claim.yml` 的 `issue.label` 临时改成 `lunaria-claim-test`；
+2. 手动运行一次 sync workflow，确认清单正常、认领流程畅通；
+3. 改回 `lunaria-claim`，再手动运行一次 sync；
+4. 之后每次 push 到 main 都会自动对账，不用再管。
+
+> [!TIP]
+> 如果之前有手工维护的认领 issue，直接归档；把原来的规则说明搬进模板标记区外面即可。
+
+## 日常使用
+
+贡献者在认领 issue 下评论即可认领：
+
+```text
+/claim src/zh/agreement.md    # 标准写法，空格分隔，可一次认领多个文件
+/claim zh/index.md            # 简写：语言目录 + 文件名
+src/index.md 我来认领           # 宽松模式：清单中的完整路径 + 意图词
+```
+
+认领成功会收到 🚀，清单里对应文件标注 `@你 · 日期`。
+
+路径支持三种写法，完全等价：清单里的 sharedPath（`src/index.md`）、仓库真实路径（`src/en/index.md`）、`语言/路径` 简写（`ja/index.md`）。
+
+> [!WARNING]
+> sharedPath 跨语言共有时（比如 `src/index.md` 的 en 和 ja 都缺），必须注明语言；bot 拿不准时会列出候选让你选。
+
+其他行为：
+
+- **放弃认领**：评论 `/release 路径` 或 `/give-up 路径`，清单恢复未认领。
+- **提交 PR**：PR 作者与变更文件匹配到活跃认领时自动关联，清单追加 PR 链接，过期计时冻结。
+- **PR 关闭未合并**：自动释放认领并回复提醒。
+- **超期**：认领后 `ttlDays` 天内无关联 PR，自动释放，并在你认领的那条评论下提醒。
+
+## 配置参考
+
+`.github/lunaria-claim.yml` 的所有字段都有默认值，只写需要覆盖的即可：
+
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `issue.title` | `🙋 翻译认领` | 认领 issue 的标题 |
+| `issue.label` | `lunaria-claim` | bot 用它定位认领 issue；改名后已有 issue 不会自动迁移 |
+| `issue.perLocale` | `false` | 按语言拆分子 issue（尚未实现） |
+| `ttlDays` | `15` | 认领后未提交 PR 的超期天数 |
+| `strictClaimSyntax` | `false` | 为 `true` 时只接受 `/claim` 命令，忽略宽松匹配 |
+| `lenientKeywords` | `认领 / 领取 / claim / 我来 / 接单` | 宽松模式下判定认领意图的关键词 |
+| `collapseThreshold` | `30` | 单个语言区块超过该条数后用 `<details>` 折叠 |
+| `dashboardUrl` | — | 填入模板的 `{{dashboard_url}}` |
+| `messages` | `{}` | 覆盖 bot 文案，键见下表 |
+
+`messages` 支持覆盖的键：
+
+| 键 | 场景 | 可用变量 |
+| --- | --- | --- |
+| `duplicate` | 文件已被他人认领 | `{path}` `{locale}` `{claimer}` |
+| `unknown_file` | 路径不在清单里 | `{token}` |
+| `ambiguous` | 跨语言路径需要指定 | `{token}` `{candidates}` |
+| `expired` | 超期释放 | `{user}` `{path}` `{locale}` `{ttlDays}` |
+| `pr_closed` | PR 关闭未合并释放 | `{user}` `{paths}` |
+
+## Action 输入参考
+
+| 输入 | 默认值 | 说明 |
+| --- | --- | --- |
+| `mode` | 必填 | `sync` / `claim` / `expire` / `link-pr` |
+| `token` | `${{ github.token }}` | GitHub API 令牌 |
+| `status-json` | `./dist/lunaria/status.json` | sync 模式读取的 status.json 路径 |
+| `config-path` | `.github/lunaria-claim.yml` | 配置文件路径 |
+| `template-path` | `.github/lunaria-claim.md` | issue body 模板路径 |
+
+## 常见问题
+
+**报 status.json not found**
+
+`sync.yml` 的 `status-json` 与 `lunaria.config.json` 的 `outDir` 对不上。本地跑一次 `lunaria build`，把实际输出路径填进去。
+
+**认领了却没反应**
+
+通常是评论不在认领 issue 上、评论者是 bot 自己，或者文件不在清单里（已完成的翻译会移出清单）。宽松模式还需要把意图词写进评论。
+
+**定时任务从没跑过**
+
+`schedule` 本身会有延迟，且仓库 60 天无任何活动时 GitHub 会暂停定时触发。低频仓库偶尔手动跑一次兜底即可；超期判定基于认领时间戳，与触发时间无关。
+
+**私有仓库**
+
+需要 PAT：checkout、`lunaria build` 两步，以及 action 的 `token` 都传 `${{ secrets.PAT }}`。
+
+**文件数量过多**
+
+先靠 `collapseThreshold` 折叠；issue body 上限约 6.5 万字符。还不够的话，就需要按语言拆分子 issue（`issue.perLocale`，尚未实现）。

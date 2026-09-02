@@ -1,0 +1,23 @@
+[
+  {
+    "sharedPath": "index",
+    "sourceFile": { "path": "src/en/index.md", "lang": "en" },
+    "localizations": {
+      "ja": { "isMissing": true },
+      "ko": { "isMissing": false, "isOutdated": false, "lang": "ko", "path": "src/ko/index.md" }
+    }
+  },
+  {
+    "sharedPath": "download-client",
+    "sourceFile": { "path": "src/en/download-client.md", "lang": "en" },
+    "localizations": {
+      "ja": {
+        "isMissing": false,
+        "isOutdated": true,
+        "lang": "ja",
+        "path": "src/ja/download-client.md"
+      },
+      "ko": { "isMissing": true }
+    }
+  }
+]
