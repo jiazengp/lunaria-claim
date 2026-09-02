@@ -83,4 +83,19 @@ describe('real-world VitePress docs pipeline', () => {
     expect(dir.entries[0]?.kind).toBe('dir');
     expect(dir.entries[0]?.files.length).toBeGreaterThan(0);
   });
+
+  it('expands per-locale placeholders with lunaria lang codes only', () => {
+    // 该 fixture 的 lunaria 配置 locales 为 en / ja；zh 是源语言，不在 localizations 里
+    const scattered =
+      '<!-- LUNARIA-CLAIM:STATE v1 -->\n{}\n<!-- /LUNARIA-CLAIM:STATE -->\n\n{{files_en}}\n\n{{files_ja}}\n\n{{files_zh}}';
+    const body = renderBody(scattered, groupByLocale(state.files), state, {
+      collapseThreshold: 30,
+      fileListStyle: 'tree',
+    });
+    expect(body).toContain('### 🌐 en');
+    expect(body).toContain('### 🌐 ja');
+    expect(body).not.toContain('### 🌐 zh');
+    // 源语言（或拼错的）占位符保持字面，便于发现
+    expect(body).toContain('{{files_zh}}');
+  });
 });
