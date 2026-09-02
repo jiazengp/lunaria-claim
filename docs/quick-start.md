@@ -1,6 +1,6 @@
 # 快速上手
 
-这一页带你完成 lunaria-claim 的接入：发布 Action 仓库、添加 workflow、配置看板、首次运行验证，以及贡献者如何认领文件。按照步骤走，大约十分钟就能跑起来。
+这一页带你完成 lunaria-claim 的接入：添加 workflow、配置看板、首次运行验证，以及贡献者如何认领文件。按照步骤走，大约十分钟就能跑起来。
 
 ## 它是怎么工作的
 
@@ -33,20 +33,24 @@
 ```jsonc
 {
   // 源语言
-  "defaultLocale": { "label": "English", "lang": "en" },
-  // 目标语言，对应清单里的区块
-  "locales": [{ "label": "简体中文", "lang": "zh" }],
+  "defaultLocale": { "label": "简体中文", "lang": "zh" },
+  // 目标语言，对应清单里的区块；占位符里的语言代码就是这里的 lang
+  "locales": [
+    { "label": "English", "lang": "en" },
+    { "label": "日本語", "lang": "ja" }
+  ],
   // status.json 的输出位置
   "outDir": "./dist/lunaria"
 }
 ```
 
-## 第 1 步：发布 Action 仓库
+## 第 1 步：发布 Action 仓库（只有想自建 fork 版才需要）
 
-lunaria-claim 是 JS Action，接入前提是把本仓库发布到 GitHub：
+直接用官方 `jiazengp/lunaria-claim@v1` 的话，跳过本步，从第 2 步开始。lunaria-claim 是 JS Action，fork 后要发布到你的 GitHub 才能被 workflow 引用：
 
 1. 推到 GitHub（`dist/` 已随仓库提交，无需构建）；
-2. 打好 tag：`git tag v1 && git push origin v1`。
+2. 打好 tag：`git tag v1 && git push origin v1`；
+3. 把第 2 步 workflow 里的引用改成 `你的用户名/lunaria-claim@v1`。
 
 > [!TIP]
 > 改了 `src/` 之后，记得本地跑 `npm run ci`、把新的 `dist/` 一起提交、再更新 tag——发布版运行的是 `dist/`，不是 `src/`。
@@ -56,7 +60,7 @@ lunaria-claim 是 JS Action，接入前提是把本仓库发布到 GitHub：
 把 [examples/workflows/sync.yml](examples/workflows/sync.yml) 和 [examples/workflows/claim-bot.yml](examples/workflows/claim-bot.yml) 拷到 `.github/workflows/`：
 
 - `sync.yml`：push 后读取 status.json 对账，也支持手动运行；
-- `claim-bot.yml`：三个 job 按事件自动路由——issue 评论走 `claim`，PR 事件走 `link-pr`，每天定时走 `expire`。
+- `claim-bot.yml`：三个 job 按事件自动路由——issue 评论走 `claim`，PR 事件走 `link-pr`，每天定时走 `expire`。**手动运行它 = 立即执行一次超期清扫**。
 
 两个文件已经写好 `jiazengp/lunaria-claim@v1` 的引用，一般不用改；唯一可能要动的是 `sync.yml` 里的 `status-json`，要指到你实际的 status.json 路径。不确定路径的话，本地跑一次 `lunaria build` 看输出位置（默认 `./dist/lunaria/status.json`）。
 
@@ -169,7 +173,7 @@ src/index.md 我来认领           # 宽松模式：清单中的完整路径 + 
 
 **定时任务从没跑过**
 
-`schedule` 本身会有延迟，且仓库 60 天无任何活动时 GitHub 会暂停定时触发。低频仓库偶尔手动跑一次兜底即可；超期判定基于认领时间戳，与触发时间无关。
+`schedule` 本身会有延迟，且仓库 60 天无任何活动时 GitHub 会暂停定时触发。低频仓库偶尔手动运行一次 `claim-bot` workflow 兜底即可；超期判定基于认领时间戳，与触发时间无关。
 
 **私有仓库**
 

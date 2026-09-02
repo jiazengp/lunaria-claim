@@ -25,6 +25,11 @@ Lunaria 负责告诉你哪些文件还没翻译，lunaria-claim 负责让这些�
 
 贡献者在 issue 下评论 `/claim 文件路径` 认领，用 `/release 路径` 放弃。目录也可以一次认领：`/claim src/manual/` 会把目录下未被认领的文件全部认领，已被他人认领的自动跳过。提交的 PR 包含认领的文件，bot 自动关联并冻结超期计时；超过 `ttlDays`（默认 15 天）还没提交 PR，认领会自动释放并提醒。
 
+## Roadmap
+
+- 按语言拆分子 issue（`issue.perLocale`，配置已预留）
+- 状态块损坏时从认领评论自动重建
+
 ## 开发
 
 本地跑 `npm run ci` 就是一次完整检查（typecheck / lint / test / build）。技术栈是 TypeScript（原生编译器）+ tsdown（ESM / node24 产物）+ vitest；`main.cjs` 是 Actions runner 的 CJS 兼容入口，别动它。发布：把含 `dist/` 的版本提交后，`git tag v1 && git push origin v1`。
