@@ -92,6 +92,7 @@ function hasOutsideComments(source: string, pattern: RegExp): boolean {
  * 用 state + 清单重渲染 body：
  * - `<!-- LUNARIA-CLAIM:STATE v1 -->` 状态块整体替换（JSON 在注释里，正文不可见）；
  * - `{{files}}` 渲染所有语言的清单，`{{files_<lang>}}` 渲染单个语言（可散置、可插入任意文字）；
+ * 语言标题由模板书写（占位符周围），bot 不渲染标题。
  * 其余内容原样保留。
  */
 export function renderBody(
@@ -129,19 +130,22 @@ export interface ViewCheckbox {
   checked: boolean;
 }
 
-/** 从 body 的可见清单解析勾选状态（文件行与目录行都算）；语言上下文取最近的上方标题 */
+/**
+ * 从 body 的可见清单解析勾选状态（文件行与目录行都算）。
+ * 语言上下文取最近的上方 `### 🌐 <lang>` 标题；没有任何标题时 locale 记空，
+ * 由调用方（applyViewEdits）按路径兜底匹配。
+ */
 export function parseViewCheckboxes(body: string): ViewCheckbox[] {
   const HEADING_RE = /^### 🌐 ([A-Za-z0-9-]+)$/;
   const CHECKBOX_RE = /^ {0,10}- \[([ xX])\] `([^`]+)`/;
   const entries: ViewCheckbox[] = [];
-  let locale: string | null = null;
+  let locale = '';
   for (const line of body.split('\n')) {
     const heading = HEADING_RE.exec(line.trimEnd());
     if (heading?.[1]) {
       locale = heading[1];
       continue;
     }
-    if (!locale) continue;
     const checkbox = CHECKBOX_RE.exec(line);
     if (!checkbox?.[1] || !checkbox[2]) continue;
     entries.push({ locale, sharedPath: checkbox[2], checked: checkbox[1] !== ' ' });
@@ -149,6 +153,7 @@ export function parseViewCheckboxes(body: string): ViewCheckbox[] {
   return entries;
 }
 
+/** 区块不渲染语言标题：标题属于模板排版（占位符周围由用户书写） */
 function renderSection(
   section: LocaleSection,
   claimsByFile: Map<string, Claim>,
@@ -160,11 +165,10 @@ function renderSection(
   } else {
     for (const file of section.files) lines.push(renderFileLine(file, claimsByFile, options));
   }
-  const heading = `### 🌐 ${section.locale}`;
   if (section.files.length > options.collapseThreshold) {
-    return `${heading}\n\n<details><summary>共 ${section.files.length} 个文件待处理（点击展开）</summary>\n\n${lines.join('\n')}\n\n</details>`;
+    return `<details><summary>共 ${section.files.length} 个文件待处理（点击展开）</summary>\n\n${lines.join('\n')}\n\n</details>`;
   }
-  return `${heading}\n\n${lines.join('\n')}`;
+  return lines.join('\n');
 }
 
 interface TreeNode {

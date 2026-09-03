@@ -1,7 +1,7 @@
 import type { ClaimConfig } from './config.js';
 import { message } from './messages.js';
 import { activeClaims, type Claim, fileKey, type TrackedFile, type TrackerState } from './model.js';
-import { parseViewCheckboxes } from './render.js';
+import { parseViewCheckboxes, type ViewCheckbox } from './render.js';
 import { type ResolutionEntry, type ResolutionFailure, resolveTargets } from './resolve.js';
 import { escapeRegExp } from './utils.js';
 
@@ -130,23 +130,31 @@ export function findExpiredClaims(state: TrackerState, now: Date, ttlDays: numbe
 export function applyViewEdits(state: TrackerState, body: string, now: Date): number {
   const view = parseViewCheckboxes(body);
   if (view.length === 0) return 0;
-  const byKey = new Map(
-    view.map((entry) => [fileKey(entry.locale, entry.sharedPath), entry] as const),
-  );
+  // 有语言标题时按 locale::path 精确匹配；模板不写标题时按路径兜底（跨语言同路径一并处理）
+  const exact = new Map<string, ViewCheckbox>();
+  const loose = new Map<string, ViewCheckbox>();
+  for (const entry of view) {
+    if (entry.locale) exact.set(fileKey(entry.locale, entry.sharedPath), entry);
+    else loose.set(entry.sharedPath, entry);
+  }
+  const findEntry = (locale: string, sharedPath: string): ViewCheckbox | undefined =>
+    exact.get(fileKey(locale, sharedPath)) ?? loose.get(sharedPath);
+
   let released = 0;
   const claims = activeClaims(state);
   for (const claim of claims) {
-    const entry = byKey.get(fileKey(claim.locale, claim.path));
+    const entry = findEntry(claim.locale, claim.path);
     if (entry?.checked) continue;
     claim.releasedAt = now.toISOString();
     claim.releaseReason = 'manual';
     released++;
   }
-  // 目录行取消勾选 = 释放该目录下的全部认领
+  // 目录行取消勾选 = 释放该目录下的全部认领（无标题时跨语言）
   for (const entry of view) {
     if (!entry.sharedPath.endsWith('/') || entry.checked) continue;
     for (const claim of activeClaims(state)) {
-      if (claim.locale === entry.locale && claim.path.startsWith(entry.sharedPath)) {
+      const localeMatch = entry.locale ? claim.locale === entry.locale : true;
+      if (localeMatch && claim.path.startsWith(entry.sharedPath)) {
         claim.releasedAt = now.toISOString();
         claim.releaseReason = 'manual';
         released++;

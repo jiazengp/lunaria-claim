@@ -45,8 +45,9 @@ describe('real-world VitePress docs pipeline', () => {
         dashboard_url: '',
       },
     );
-    expect(body).toContain('### 🌐 en');
-    expect(body).toContain('### 🌐 ja');
+    const firstFile = state.files[0]?.sharedPath;
+    expect(firstFile).toBeDefined();
+    expect(body).toContain(`\`${firstFile}\``);
     // 树状：目录行也带 checkbox；文件 checkbox 数至少等于清单条目数
     expect(body).toContain('- [ ] `src/`');
     const checkboxCount = (body.match(/^ {0,10}- \[[ x]\]/gm) ?? []).length;
@@ -92,9 +93,7 @@ describe('real-world VitePress docs pipeline', () => {
       collapseThreshold: 30,
       fileListStyle: 'tree',
     });
-    expect(body).toContain('### 🌐 en');
-    expect(body).toContain('### 🌐 ja');
-    expect(body).not.toContain('### 🌐 zh');
+    expect(body).toContain('- [ ] `src/`'); // en 区块有树状条目
     // 源语言（或拼错的）占位符保持字面，便于发现
     expect(body).toContain('{{files_zh}}');
   });

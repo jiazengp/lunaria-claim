@@ -53472,6 +53472,7 @@ function hasOutsideComments(source, pattern) {
 * 用 state + 清单重渲染 body：
 * - `<!-- LUNARIA-CLAIM:STATE v1 -->` 状态块整体替换（JSON 在注释里，正文不可见）；
 * - `{{files}}` 渲染所有语言的清单，`{{files_<lang>}}` 渲染单个语言（可散置、可插入任意文字）；
+* 语言标题由模板书写（占位符周围），bot 不渲染标题。
 * 其余内容原样保留。
 */
 function renderBody(body, sections, state, options) {
@@ -53485,19 +53486,22 @@ function renderBody(body, sections, state, options) {
 		return byLocale.get(locale) ?? match;
 	}).replace(STATE_REGION_RE, () => serializeState(state));
 }
-/** 从 body 的可见清单解析勾选状态（文件行与目录行都算）；语言上下文取最近的上方标题 */
+/**
+* 从 body 的可见清单解析勾选状态（文件行与目录行都算）。
+* 语言上下文取最近的上方 `### 🌐 <lang>` 标题；没有任何标题时 locale 记空，
+* 由调用方（applyViewEdits）按路径兜底匹配。
+*/
 function parseViewCheckboxes(body) {
 	const HEADING_RE = /^### 🌐 ([A-Za-z0-9-]+)$/;
 	const CHECKBOX_RE = /^ {0,10}- \[([ xX])\] `([^`]+)`/;
 	const entries = [];
-	let locale = null;
+	let locale = "";
 	for (const line of body.split("\n")) {
 		const heading = HEADING_RE.exec(line.trimEnd());
 		if (heading?.[1]) {
 			locale = heading[1];
 			continue;
 		}
-		if (!locale) continue;
 		const checkbox = CHECKBOX_RE.exec(line);
 		if (!checkbox?.[1] || !checkbox[2]) continue;
 		entries.push({
@@ -53508,13 +53512,13 @@ function parseViewCheckboxes(body) {
 	}
 	return entries;
 }
+/** 区块不渲染语言标题：标题属于模板排版（占位符周围由用户书写） */
 function renderSection(section, claimsByFile, options) {
 	const lines = [];
 	if (options.fileListStyle === "tree") renderTree(buildTree(section.files), 0, "", lines, claimsByFile, options);
 	else for (const file of section.files) lines.push(renderFileLine(file, claimsByFile, options));
-	const heading = `### 🌐 ${section.locale}`;
-	if (section.files.length > options.collapseThreshold) return `${heading}\n\n<details><summary>共 ${section.files.length} 个文件待处理（点击展开）</summary>\n\n${lines.join("\n")}\n\n</details>`;
-	return `${heading}\n\n${lines.join("\n")}`;
+	if (section.files.length > options.collapseThreshold) return `<details><summary>共 ${section.files.length} 个文件待处理（点击展开）</summary>\n\n${lines.join("\n")}\n\n</details>`;
+	return lines.join("\n");
 }
 function buildTree(files) {
 	const root = {
@@ -53737,18 +53741,22 @@ function findExpiredClaims(state, now, ttlDays) {
 function applyViewEdits(state, body, now) {
 	const view = parseViewCheckboxes(body);
 	if (view.length === 0) return 0;
-	const byKey = new Map(view.map((entry) => [fileKey(entry.locale, entry.sharedPath), entry]));
+	const exact = /* @__PURE__ */ new Map();
+	const loose = /* @__PURE__ */ new Map();
+	for (const entry of view) if (entry.locale) exact.set(fileKey(entry.locale, entry.sharedPath), entry);
+	else loose.set(entry.sharedPath, entry);
+	const findEntry = (locale, sharedPath) => exact.get(fileKey(locale, sharedPath)) ?? loose.get(sharedPath);
 	let released = 0;
 	const claims = activeClaims(state);
 	for (const claim of claims) {
-		if (byKey.get(fileKey(claim.locale, claim.path))?.checked) continue;
+		if (findEntry(claim.locale, claim.path)?.checked) continue;
 		claim.releasedAt = now.toISOString();
 		claim.releaseReason = "manual";
 		released++;
 	}
 	for (const entry of view) {
 		if (!entry.sharedPath.endsWith("/") || entry.checked) continue;
-		for (const claim of activeClaims(state)) if (claim.locale === entry.locale && claim.path.startsWith(entry.sharedPath)) {
+		for (const claim of activeClaims(state)) if ((entry.locale ? claim.locale === entry.locale : true) && claim.path.startsWith(entry.sharedPath)) {
 			claim.releasedAt = now.toISOString();
 			claim.releaseReason = "manual";
 			released++;

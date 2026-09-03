@@ -209,12 +209,6 @@ describe('applyViewEdits', () => {
     expect(applyViewEdits(state, body, now)).toBe(1);
     expect(state.claims[0]?.releaseReason).toBe('manual');
   });
-
-  it('does nothing when no language heading is parseable', () => {
-    const state: TrackerState = { version: 1, files: [], claims: [makeClaim()] };
-    expect(applyViewEdits(state, '- [ ] `src/manual/a.md`', now)).toBe(0);
-    expect(state.claims[0]?.releasedAt).toBeUndefined();
-  });
 });
 
 describe('parseClaimComment boundaries', () => {
@@ -487,5 +481,22 @@ describe('applyViewEdits directory line', () => {
     expect(applyViewEdits(state, body, new Date('2026-09-02T00:00:00Z'))).toBe(2);
     expect(state.claims.filter((claim) => claim.releaseReason === 'manual')).toHaveLength(2);
     expect(state.claims[2]?.releaseReason).toBeUndefined();
+  });
+});
+
+describe('applyViewEdits heading-less template', () => {
+  it('falls back to path-only matching across locales', () => {
+    const state: TrackerState = {
+      version: 1,
+      files: [],
+      claims: [
+        { ...makeClaim(), locale: 'en' },
+        { ...makeClaim(), locale: 'ja' },
+        { ...makeClaim(), path: 'src/other.md' },
+      ],
+    };
+    const body = '- [ ] `src/manual/a.md`\n- [x] `src/other.md`';
+    expect(applyViewEdits(state, body, new Date('2026-09-02T00:00:00Z'))).toBe(2);
+    expect(state.claims.filter((claim) => claim.releaseReason === 'manual')).toHaveLength(2);
   });
 });

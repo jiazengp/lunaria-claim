@@ -78,7 +78,7 @@
 
 | 占位符 | 说明 |
 | --- | --- |
-| `{{files_<lang>}}` | 单个语言的清单，`lang` 与 [lunaria.config.json 的 `locales[]`](https://lunaria.dev/configuration/) 里每个 `lang` 字段**完全一致**（不是 `label`；注意大小写与连字符，如 `ja`、`zh-CN`）。可在模板里任意摆放、中间插入说明文字；该语言暂无待翻译文件或代码不匹配时原样保留 |
+| `{{files_<lang>}}` | 单个语言的清单，`lang` 与 [lunaria.config.json 的 `locales[]`](https://lunaria.dev/configuration/) 里每个 `lang` 字段**完全一致**（不是 `label`；注意大小写与连字符，如 `ja`、`zh-CN`）。可在模板里任意摆放、中间插入说明文字（语言标题也由你写，如 `### 日本語`）；该语言暂无待翻译文件或代码不匹配时原样保留 |
 | `{{files}}` | 所有语言的清单合并渲染（兼容旧模板的写法） |
 | `{{ttl_days}}` | 配置里的 `ttlDays`，写在"认领后 X 天内提交 PR"之类的提示里 |
 | `{{dashboard_url}}` | 配置里的 `dashboardUrl`，未配置时原样保留 |
