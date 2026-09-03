@@ -60,7 +60,7 @@
 把 [examples/workflows/sync.yml](examples/workflows/sync.yml) 和 [examples/workflows/claim-bot.yml](examples/workflows/claim-bot.yml) 拷到 `.github/workflows/`：
 
 - `sync.yml`：push 后读取 status.json 对账，也支持手动运行；
-- `claim-bot.yml`：三个 job 按事件自动路由——issue 评论走 `claim`，PR 事件走 `link-pr`，每天定时走 `expire`。**手动运行它 = 立即执行一次超期清扫**。
+- `claim-bot.yml`：四个 job 按事件自动路由——issue 评论走 `claim`，正文编辑走 `view-edit`，PR 事件走 `link-pr`，每天定时走 `expire`。**手动运行它 = 立即执行一次超期清扫**。
 
 两个文件已经写好 `jiazengp/lunaria-claim@v1` 的引用，一般不用改；唯一可能要动的是 `sync.yml` 里的 `status-json`。**默认值 `./dist/lunaria/status.json` 仅为示例，必须与 `lunaria.config.json` 的 `outDir` 对应**——status.json 实际输出在 outDir 下。不确定路径的话，本地跑一次 `lunaria build` 看输出的 Output directory。
 
@@ -74,7 +74,10 @@
 模板里有两个标记区，都**不要编辑**：`<!-- LUNARIA-CLAIM:STATE v1 -->` 状态块（必须保留），以及 `<!-- LUNARIA-CLAIM:FILES -->` 标记区（旧格式的兼容壳，可留可删）。区域之外的排版自由发挥。真正会被替换的占位符：
 
 > [!NOTE]
-> `STATE` 区是隐藏在正文里的 JSON 账本（在 issue 的 Raw 视图可见）：记录谁认领了什么、何时认领、关联了哪个 PR。你能看到的勾选清单只是它的渲染结果。**别手动编辑它**——要改认领请用 `/release` 命令，或直接在清单里取消勾选（bot 会识别为手动释放）。万一它被弄坏，sync 会自动从认领评论回放重建并留言说明；重建只保证还原评论里有明确 /claim 命令的认领，遗留问题重新认领即可。
+> **模板覆盖策略**：配置里**显式写了 `templatePath` 键**时，模板是正文布局的唯一真相源——每次更新都按模板整体重建正文，排版上的手写编辑不会保留（模板怎么改，正文就长什么样）；**没有显式配置** `templatePath` 时维持原位覆盖——标记区与占位符之外的手写内容保留，模板文件的改动也不会覆盖已有正文。按语言分区的多占位符模板（`{{files_ja}}` 等）无论是否显式配置都按模板整体重建。
+
+> [!NOTE]
+> `STATE` 区是隐藏在正文里的 JSON 账本（在 issue 的 Raw 视图可见）：记录谁认领了什么、何时认领、关联了哪个 PR。你能看到的勾选清单只是它的渲染结果。**别手动编辑它**——要改认领请用 `/release` 命令，或直接在清单里取消勾选（bot 会识别为手动释放，见下方"正文勾选双向对账"）。万一它被弄坏，sync 会自动从认领评论回放重建并留言说明；重建只保证还原评论里有明确 `/claim` 命令的认领（**正文勾选产生的认领没有评论可回放，损坏重建时会丢失**），遗留问题重新认领即可。
 
 | 占位符 | 说明 |
 | --- | --- |
@@ -117,11 +120,11 @@ src/index.md 我来认领           # 宽松模式：清单中的完整路径 + 
 
 其他行为：
 
-- **放弃认领**：评论 `/release 路径` 或 `/give-up 路径`，清单恢复未认领。
+- **放弃认领**：评论 `/release 路径` 或 `/give-up 路径`，清单恢复未认领。**编辑或删除认领评论**：编辑会先释放该评论产生的全部认领、再按新正文重放（改成普通文字 = 只释放）；删除只静默释放，不解析、不回复。
 - **提交 PR**：PR 作者与变更文件匹配到活跃认领时自动关联，清单追加 PR 链接，过期计时冻结。
 - **PR 关闭未合并**：自动释放认领并回复提醒。
 - **超期**：认领后 `ttlDays` 天内无关联 PR，自动释放，并在你认领的那条评论下提醒。
-- **手动编辑兼容（单向）**：管理员在 issue 正文里取消勾选某个已认领文件（或删掉那一行），bot 下次更新时会把它当作手动释放——去掉后面的 @引用、日期和 PR 链接，恢复未认领；**取消勾选目录行 = 释放该目录下全部认领**；标记区与占位符之外的手写内容不会被覆盖（默认 `{{files}}` 单区模板由标记区原位覆盖实现；按语言分区的多占位符模板则以模板整体刷新正文）。**反向不存在**：手动勾选未认领文件不会被当成认领（状态块里没有认领人信息可补，bot 下次渲染会画回未认领）。
+- **正文勾选双向对账（view-edit）**：管理员在 issue 正文里直接改勾选态，bot 按改动对账——**取消勾选**（或删掉那一行）= 手动释放，且会在原认领评论上打一个 👎 reaction 通知认领人（同一评论多个文件被取消只打一次）；**勾选未认领的行** = 以编辑者身份认领（与评论认领行为一致，但没有认领评论；这类认领在状态块损坏自愈时无法从评论回放还原）。标题/标签等非正文编辑、bot 自身的写回编辑都会被忽略。
 - **清单行格式**：文件路径显示为目标语言对应文件（如 `src/en/agreement.md`），本身可点击——未翻译的指向「Create file」页、过期的是编辑页，后接 `[source]`（原文链接）与 `[history]`（原文变更历史）；目录行为仓库目录链接，子树全部认领时打勾。已认领的行保持简洁（只保留路径、@认领人、日期与 PR）。
 - **已完成翻译的行**（Lunaria 判定 up-to-date）也保留在清单中并自动打勾，无 @认领人；不可认领（认领会提示不在清单/已翻译完成）。清单只来自 status.json——Lunaria 配置里 `ignore` 排除的文件不会出现，配置更新后下次 sync 自动从清单移除（相关认领按完成释放）。
 
@@ -139,7 +142,7 @@ src/index.md 我来认领           # 宽松模式：清单中的完整路径 + 
 | `lenientKeywords` | `认领 / 领取 / claim / 我来 / 接单` | 宽松模式下判定认领意图的关键词 |
 | `collapseThreshold` | `30` | 单个语言区块超过该条数后用 `<details>` 折叠 |
 | `fileListStyle` | `tree` | 清单展示：`tree` 按目录嵌套，`flat` 平铺 |
-| `templatePath` | `.github/lunaria-claim.md` | issue body 模板文件的位置 |
+| `templatePath` | `.github/lunaria-claim.md` | issue body 模板文件的位置；**显式写上这个键 = 模板是布局真相源，每次更新按模板整体重建正文（手写编辑不保留）**；不写则原位覆盖、保留正文手写内容 |
 | `dashboardUrl` | — | 填入模板的 `{{dashboard_url}}` |
 | `messages` | `{}` | 覆盖 bot 文案，键见下表 |
 
@@ -158,7 +161,7 @@ src/index.md 我来认领           # 宽松模式：清单中的完整路径 + 
 
 | 输入 | 默认值 | 说明 |
 | --- | --- | --- |
-| `mode` | 必填 | `sync` / `claim` / `expire` / `link-pr` |
+| `mode` | 必填 | `sync` / `claim` / `expire` / `link-pr` / `view-edit` |
 | `token` | `${{ github.token }}` | GitHub API 令牌 |
 | `status-json` | `./dist/lunaria/status.json` | sync 模式读取的 status.json 路径（示例值，需与 outDir 对应） |
 | `config-path` | `.github/lunaria-claim.yml` | 配置文件路径 |

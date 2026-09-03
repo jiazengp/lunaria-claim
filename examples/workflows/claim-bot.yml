@@ -1,8 +1,8 @@
-# 认领交互：评论认领 / PR 关联 / 每日超期清扫，三个 job 按事件自动路由；手动运行 = 立即清扫
+# 认领交互：评论认领 / 正文手动勾选对账 / PR 关联 / 每日超期清扫，四个 job 按事件自动路由；手动运行 = 立即清扫
 name: Translation claim bot
 on:
   issue_comment:
-    types: [created]
+    types: [created, edited, deleted]
   pull_request_target:
     types: [opened, synchronize, closed]
   schedule:
@@ -28,6 +28,16 @@ jobs:
       - uses: jiazengp/lunaria-claim@v1
         with:
           mode: claim
+
+  view-edit:
+    # 仅处理正文变更：非 bot 编辑者、且 changes.body 存在（标题/标签编辑直接忽略）
+    if: github.event_name == 'issues' && github.event.action == 'edited' && github.event.changes.body.from && github.event.sender.type != 'Bot'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jiazengp/lunaria-claim@v1
+        with:
+          mode: view-edit
 
   link-pr:
     if: github.event_name == 'pull_request_target'

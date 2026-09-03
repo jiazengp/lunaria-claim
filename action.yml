@@ -9,7 +9,7 @@ branding:
 
 inputs:
   mode:
-    description: 'Which mode to run: sync | claim | expire | link-pr'
+    description: 'Which mode to run: sync | claim | expire | link-pr | view-edit'
     required: true
   token:
     description: 'GitHub token used for API calls'
