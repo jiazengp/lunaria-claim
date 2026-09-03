@@ -205,9 +205,11 @@ describe('renderBody links', () => {
       { version: 1, files: linkedFiles, claims: [] },
       linkedOptions,
     );
-    expect(body).toContain('[`src/missing.md`](https://github.com/o/r/new/main/src/ja/missing.md)');
+    expect(body).toContain(
+      '[`src/ja/missing.md`](https://github.com/o/r/new/main/src/ja/missing.md)',
+    );
     expect(body).toContain('[Create file](https://github.com/o/r/new/main/src/ja/missing.md)');
-    expect(body).toContain('[`src/stale.md`](https://github.com/o/r/edit/main/src/ja/stale.md)');
+    expect(body).toContain('[`src/ja/stale.md`](https://github.com/o/r/edit/main/src/ja/stale.md)');
     expect(body).toContain('[source](https://github.com/o/r/blob/main/src/zh/missing.md)');
     expect(body).toContain('[history](https://github.com/o/r/commits/main/src/zh/missing.md)');
     expect(body).not.toContain('Create file)`');
@@ -234,7 +236,7 @@ describe('renderBody links', () => {
       linkedOptions,
     );
     expect(body).toContain(
-      '[`src/missing.md`](https://github.com/o/r/new/main/src/ja/missing.md) — @alice · 2026-09-01',
+      '[`src/ja/missing.md`](https://github.com/o/r/new/main/src/ja/missing.md) — @alice · 2026-09-01',
     );
     expect(body).not.toContain('[source](https://github.com/o/r/blob/main/src/zh/missing.md)');
   });
@@ -261,7 +263,7 @@ describe('done rows', () => {
       },
     );
     expect(body).toContain(
-      '- [x] [`src/done.md`](https://github.com/o/r/edit/main/src/ja/done.md)',
+      '- [x] [`src/ja/done.md`](https://github.com/o/r/edit/main/src/ja/done.md)',
     );
     expect(body).not.toContain(' — @');
   });
@@ -320,5 +322,78 @@ describe('rendered body updates (issue #2 regression)', () => {
     );
     expect(out).toContain('marker');
     expect(out).toContain('- [ ] `src/index.md`');
+  });
+});
+
+describe('docs #555 layout (per-locale placeholders inside their own FILES markers)', () => {
+  it('rebuilds from the template: one list per locale, hidden state, no stale duplicates', () => {
+    const template = [
+      '## 翻译认领',
+      '',
+      '### English',
+      '<!-- LUNARIA-CLAIM:FILES -->',
+      '{{files_en}}',
+      '<!-- /LUNARIA-CLAIM:FILES -->',
+      '',
+      '### 日本語',
+      '<!-- LUNARIA-CLAIM:FILES -->',
+      '{{files_ja}}',
+      '<!-- /LUNARIA-CLAIM:FILES -->',
+      '',
+      '<!-- LUNARIA-CLAIM:STATE v1 -->',
+      '{}',
+      '<!-- /LUNARIA-CLAIM:STATE -->',
+    ].join('\n');
+    // 模拟 v1.1 时代的陈旧渲染正文：占位符已被消费、尾部残留可见 JSON 状态块
+    const staleBody = [
+      '## 翻译认领',
+      '',
+      '### English',
+      '<!-- LUNARIA-CLAIM:FILES -->',
+      '- [ ] `src/agreement.md`',
+      '<!-- /LUNARIA-CLAIM:FILES -->',
+      '',
+      '### 日本語',
+      '<!-- LUNARIA-CLAIM:FILES -->',
+      '- [ ] `src/callback.md`',
+      '<!-- /LUNARIA-CLAIM:FILES -->',
+      '',
+      '<!-- LUNARIA-CLAIM:STATE v1 -->',
+      '{"version":1,"files":[],"claims":[]}',
+      '<!-- /LUNARIA-CLAIM:STATE -->',
+      '',
+      '<!-- LUNARIA-CLAIM:STATE v1 -->',
+      '{"version":1,"files":[],"claims":[]}',
+      '<!-- /LUNARIA-CLAIM:STATE -->',
+    ].join('\n');
+    const files = [
+      {
+        sharedPath: 'src/agreement.md',
+        locale: 'en',
+        status: 'missing' as const,
+        localizationPath: 'src/en/agreement.md',
+      },
+      {
+        sharedPath: 'src/callback.md',
+        locale: 'ja',
+        status: 'missing' as const,
+        localizationPath: 'src/ja/callback.md',
+      },
+    ];
+    const out = recomposeBody(
+      staleBody,
+      template,
+      groupByLocale(files),
+      { version: 1, files, claims: [] },
+      { ttl_days: '15', dashboard_url: '' },
+      { collapseThreshold: 30, fileListStyle: 'flat' },
+    );
+    // 每个语言恰好一个清单
+    expect(out.match(/- \[ \] `[^`]+`/g)).toHaveLength(2);
+    expect(out).toContain('- [ ] `src/en/agreement.md`');
+    expect(out).toContain('- [ ] `src/ja/callback.md`');
+    // 状态块只剩一套（open 标记唯一）且为注释隐藏格式，正文不再有可见 JSON
+    expect(out.match(/LUNARIA-CLAIM:STATE v1 -->/g)).toHaveLength(1);
+    expect(out).not.toContain('{"version":');
   });
 });

@@ -48,9 +48,11 @@ describe('real-world VitePress docs pipeline', () => {
         dashboard_url: '',
       },
     );
-    const firstFile = state.files[0]?.sharedPath;
+    const firstFile = state.files[0];
     expect(firstFile).toBeDefined();
-    expect(body).toContain(`\`${firstFile}\``);
+    const shown = firstFile?.localizationPath ?? firstFile?.sharedPath;
+    expect(shown).toBeDefined();
+    expect(body).toContain(`\`${shown}\``);
     // 树状：目录行也带 checkbox；文件 checkbox 数至少等于清单条目数
     expect(body).toContain('- [ ] `src/`');
     const checkboxCount = (body.match(/^ {0,10}- \[[ x]\]/gm) ?? []).length;

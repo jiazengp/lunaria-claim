@@ -130,31 +130,48 @@ export function findExpiredClaims(state: TrackerState, now: Date, ttlDays: numbe
 export function applyViewEdits(state: TrackerState, body: string, now: Date): number {
   const view = parseViewCheckboxes(body);
   if (view.length === 0) return 0;
-  // 有语言标题时按 locale::path 精确匹配；模板不写标题时按路径兜底（跨语言同路径一并处理）
+  // 展示路径可能是 sharedPath 或目标语言文件路径，两条键都收
   const exact = new Map<string, ViewCheckbox>();
   const loose = new Map<string, ViewCheckbox>();
   for (const entry of view) {
     if (entry.locale) exact.set(fileKey(entry.locale, entry.sharedPath), entry);
     else loose.set(entry.sharedPath, entry);
   }
-  const findEntry = (locale: string, sharedPath: string): ViewCheckbox | undefined =>
-    exact.get(fileKey(locale, sharedPath)) ?? loose.get(sharedPath);
+  const findEntry = (claim: Claim): ViewCheckbox | undefined => {
+    const keys = [fileKey(claim.locale, claim.path)];
+    const file = state.files.find(
+      (candidate) => candidate.locale === claim.locale && candidate.sharedPath === claim.path,
+    );
+    if (file?.localizationPath) keys.push(fileKey(claim.locale, file.localizationPath));
+    for (const key of keys) {
+      const hit = exact.get(key);
+      if (hit) return hit;
+    }
+    const looseHit = loose.get(claim.path);
+    if (looseHit) return looseHit;
+    return file?.localizationPath ? loose.get(file.localizationPath) : undefined;
+  };
 
   let released = 0;
-  const claims = activeClaims(state);
-  for (const claim of claims) {
-    const entry = findEntry(claim.locale, claim.path);
+  for (const claim of activeClaims(state)) {
+    const entry = findEntry(claim);
     if (entry?.checked) continue;
     claim.releasedAt = now.toISOString();
     claim.releaseReason = 'manual';
     released++;
   }
-  // 目录行取消勾选 = 释放该目录下的全部认领（无标题时跨语言）
+  // 目录行取消勾选 = 释放该目录下的全部认领；目录前缀可能是 sharedPath 或展示路径形态
   for (const entry of view) {
     if (!entry.sharedPath.endsWith('/') || entry.checked) continue;
+    const prefix = entry.sharedPath;
     for (const claim of activeClaims(state)) {
       const localeMatch = entry.locale ? claim.locale === entry.locale : true;
-      if (localeMatch && claim.path.startsWith(entry.sharedPath)) {
+      if (!localeMatch) continue;
+      const file = state.files.find(
+        (candidate) => candidate.locale === claim.locale && candidate.sharedPath === claim.path,
+      );
+      const displayPrefixOk = file?.localizationPath?.startsWith(prefix) === true;
+      if (claim.path.startsWith(prefix) || displayPrefixOk) {
         claim.releasedAt = now.toISOString();
         claim.releaseReason = 'manual';
         released++;

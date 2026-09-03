@@ -26,6 +26,9 @@ const FILES_REGION_RE = new RegExp(
 /** {{files}} 或 {{files_<lang>}}，lang 为 lunaria 配置里的语言代码（如 ja、zh-CN） */
 const FILES_PLACEHOLDER_RE = /\{\{\s*files(?:_([A-Za-z0-9-]+))?\s*\}\}/g;
 
+/** 模板里是否存在按语言分区占位符（{{files_<lang>}}） */
+const PER_LOCALE_PLACEHOLDER_RE = /\{\{\s*files_[A-Za-z0-9-]+\s*\}\}/;
+
 export interface RenderOptions {
   collapseThreshold: number;
   fileListStyle: FileListStyle;
@@ -46,6 +49,11 @@ export function renderOptions(
     repoUrl: repo ? `https://github.com/${repo.owner}/${repo.repo}` : undefined,
     branch: files ? resolveBranch(files) : 'main',
   };
+}
+
+/** 列表展示的路径：目标语言文件（localizationPath）优先，缺省退到 sharedPath */
+export function displayPath(file: TrackedFile): string {
+  return file.localizationPath ?? file.sharedPath;
 }
 
 /** 从 sourceUrl（.../blob/<branch>/...）推断默认分支 */
@@ -85,14 +93,16 @@ function replaceOutsideHtmlComments(
 }
 
 function hasOutsideComments(source: string, pattern: RegExp): boolean {
+  // 非全局克隆：/g 的 lastIndex 会跨调用残留，造成误判
+  const re = new RegExp(pattern.source);
   const commentRe = /<!--[\s\S]*?-->/g;
   let cursor = 0;
   for (const comment of source.matchAll(commentRe)) {
     const start = comment.index ?? 0;
-    if (pattern.test(source.slice(cursor, start))) return true;
+    if (re.test(source.slice(cursor, start))) return true;
     cursor = start + comment[0].length;
   }
-  return pattern.test(source.slice(cursor));
+  return re.test(source.slice(cursor));
 }
 
 /**
@@ -153,6 +163,10 @@ export function recomposeBody(
   vars: Record<string, string>,
   options: RenderOptions,
 ): string {
+  // 多占位符（按语言分区）模板：布局以模板为准整体重建——正文里的旧分区无法可靠映射
+  if (PER_LOCALE_PLACEHOLDER_RE.test(template)) {
+    return applyPlaceholders(renderBody(template, sections, state, options), vars);
+  }
   try {
     return applyPlaceholders(renderBody(body, sections, state, options), vars);
   } catch {
@@ -216,7 +230,7 @@ interface TreeNode {
 function buildTree(files: TrackedFile[]): TreeNode {
   const root: TreeNode = { name: '', dirs: new Map(), files: [] };
   for (const file of files) {
-    const parts = file.sharedPath.split('/');
+    const parts = displayPath(file).split('/');
     let node = root;
     for (let i = 0; i < parts.length - 1; i++) {
       const segment = parts[i]!;
@@ -277,11 +291,13 @@ function renderFileLine(
         ? `${repoUrl}/new/${branch}/${file.localizationPath}`
         : `${repoUrl}/edit/${branch}/${file.localizationPath}`
       : '';
-  const pathText = actionUrl ? `[\`${file.sharedPath}\`](${actionUrl})` : `\`${file.sharedPath}\``;
+  const shown = displayPath(file);
+  const pathText = actionUrl ? `[\`${shown}\`](${actionUrl})` : `\`${shown}\``;
   let tail = '';
   if (claim) {
     tail = ` — @${claim.user} · ${claim.claimedAt.slice(0, 10)}${claim.prUrl ? ` · [PR](${claim.prUrl})` : ''}`;
-  } else {
+  } else if (file.status !== 'done') {
+    // 未认领的待翻译行才附参考链接；已完成的行保持干净
     const refs: string[] = [];
     if (file.status === 'missing' && actionUrl) refs.push(`[Create file](${actionUrl})`);
     if (repoUrl && file.sourceUrl) refs.push(`[source](${file.sourceUrl})`);

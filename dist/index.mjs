@@ -53429,6 +53429,8 @@ const STATE_REGION_RE = new RegExp(`${escapeRegExp(STATE_OPEN)}\\n[\\s\\S]*?\\n$
 const FILES_REGION_RE = new RegExp(`${escapeRegExp(FILES_OPEN)}[\\s\\S]*?${escapeRegExp(FILES_CLOSE)}`);
 /** {{files}} 或 {{files_<lang>}}，lang 为 lunaria 配置里的语言代码（如 ja、zh-CN） */
 const FILES_PLACEHOLDER_RE = /\{\{\s*files(?:_([A-Za-z0-9-]+))?\s*\}\}/g;
+/** 模板里是否存在按语言分区占位符（{{files_<lang>}}） */
+const PER_LOCALE_PLACEHOLDER_RE = /\{\{\s*files_[A-Za-z0-9-]+\s*\}\}/;
 function renderOptions(config, repo, files) {
 	return {
 		collapseThreshold: config.collapseThreshold,
@@ -53436,6 +53438,10 @@ function renderOptions(config, repo, files) {
 		repoUrl: repo ? `https://github.com/${repo.owner}/${repo.repo}` : void 0,
 		branch: files ? resolveBranch(files) : "main"
 	};
+}
+/** 列表展示的路径：目标语言文件（localizationPath）优先，缺省退到 sharedPath */
+function displayPath(file) {
+	return file.localizationPath ?? file.sharedPath;
 }
 /** 从 sourceUrl（.../blob/<branch>/...）推断默认分支 */
 function resolveBranch(files) {
@@ -53463,14 +53469,15 @@ function replaceOutsideHtmlComments(source, pattern, replacer) {
 	return out;
 }
 function hasOutsideComments(source, pattern) {
+	const re = new RegExp(pattern.source);
 	const commentRe = /<!--[\s\S]*?-->/g;
 	let cursor = 0;
 	for (const comment of source.matchAll(commentRe)) {
 		const start = comment.index ?? 0;
-		if (pattern.test(source.slice(cursor, start))) return true;
+		if (re.test(source.slice(cursor, start))) return true;
 		cursor = start + comment[0].length;
 	}
-	return pattern.test(source.slice(cursor));
+	return re.test(source.slice(cursor));
 }
 /**
 * 用 state + 清单重渲染 body：
@@ -53499,6 +53506,7 @@ function renderBody(body, sections, state, options) {
 * 正文已不可用（无占位符也无标记区，如多占位符模板）时回退到按模板整体重建。
 */
 function recomposeBody(body, template, sections, state, vars, options) {
+	if (PER_LOCALE_PLACEHOLDER_RE.test(template)) return applyPlaceholders(renderBody(template, sections, state, options), vars);
 	try {
 		return applyPlaceholders(renderBody(body, sections, state, options), vars);
 	} catch {
@@ -53546,7 +53554,7 @@ function buildTree(files) {
 		files: []
 	};
 	for (const file of files) {
-		const parts = file.sharedPath.split("/");
+		const parts = displayPath(file).split("/");
 		let node = root;
 		for (let i = 0; i < parts.length - 1; i++) {
 			const segment = parts[i];
@@ -53585,10 +53593,11 @@ function renderFileLine(file, claimsByFile, options) {
 	const repoUrl = options.repoUrl ?? "";
 	const branch = options.branch ?? "main";
 	const actionUrl = repoUrl && file.localizationPath ? file.status === "missing" ? `${repoUrl}/new/${branch}/${file.localizationPath}` : `${repoUrl}/edit/${branch}/${file.localizationPath}` : "";
-	const pathText = actionUrl ? `[\`${file.sharedPath}\`](${actionUrl})` : `\`${file.sharedPath}\``;
+	const shown = displayPath(file);
+	const pathText = actionUrl ? `[\`${shown}\`](${actionUrl})` : `\`${shown}\``;
 	let tail = "";
 	if (claim) tail = ` — @${claim.user} · ${claim.claimedAt.slice(0, 10)}${claim.prUrl ? ` · [PR](${claim.prUrl})` : ""}`;
-	else {
+	else if (file.status !== "done") {
 		const refs = [];
 		if (file.status === "missing" && actionUrl) refs.push(`[Create file](${actionUrl})`);
 		if (repoUrl && file.sourceUrl) refs.push(`[source](${file.sourceUrl})`);
@@ -53765,21 +53774,36 @@ function applyViewEdits(state, body, now) {
 	const loose = /* @__PURE__ */ new Map();
 	for (const entry of view) if (entry.locale) exact.set(fileKey(entry.locale, entry.sharedPath), entry);
 	else loose.set(entry.sharedPath, entry);
-	const findEntry = (locale, sharedPath) => exact.get(fileKey(locale, sharedPath)) ?? loose.get(sharedPath);
+	const findEntry = (claim) => {
+		const keys = [fileKey(claim.locale, claim.path)];
+		const file = state.files.find((candidate) => candidate.locale === claim.locale && candidate.sharedPath === claim.path);
+		if (file?.localizationPath) keys.push(fileKey(claim.locale, file.localizationPath));
+		for (const key of keys) {
+			const hit = exact.get(key);
+			if (hit) return hit;
+		}
+		const looseHit = loose.get(claim.path);
+		if (looseHit) return looseHit;
+		return file?.localizationPath ? loose.get(file.localizationPath) : void 0;
+	};
 	let released = 0;
-	const claims = activeClaims(state);
-	for (const claim of claims) {
-		if (findEntry(claim.locale, claim.path)?.checked) continue;
+	for (const claim of activeClaims(state)) {
+		if (findEntry(claim)?.checked) continue;
 		claim.releasedAt = now.toISOString();
 		claim.releaseReason = "manual";
 		released++;
 	}
 	for (const entry of view) {
 		if (!entry.sharedPath.endsWith("/") || entry.checked) continue;
-		for (const claim of activeClaims(state)) if ((entry.locale ? claim.locale === entry.locale : true) && claim.path.startsWith(entry.sharedPath)) {
-			claim.releasedAt = now.toISOString();
-			claim.releaseReason = "manual";
-			released++;
+		const prefix = entry.sharedPath;
+		for (const claim of activeClaims(state)) {
+			if (!(entry.locale ? claim.locale === entry.locale : true)) continue;
+			const displayPrefixOk = state.files.find((candidate) => candidate.locale === claim.locale && candidate.sharedPath === claim.path)?.localizationPath?.startsWith(prefix) === true;
+			if (claim.path.startsWith(prefix) || displayPrefixOk) {
+				claim.releasedAt = now.toISOString();
+				claim.releaseReason = "manual";
+				released++;
+			}
 		}
 	}
 	return released;
