@@ -28231,6 +28231,531 @@ function repoFromEnv() {
 	};
 }
 //#endregion
+//#region src/messages.ts
+const DEFAULT_MESSAGES = {
+	duplicate: "👀 `{path}`（{locale}）已被 @{claimer} 认领，请换一个文件。",
+	unknown_file: "❓ 清单里没有 `{token}`（或已翻译完成）。请从清单复制完整路径后重试。",
+	ambiguous: "❓ `{token}` 匹配到多个文件：{candidates}。请用完整路径或加语言前缀，如 `en/{token}`。",
+	expired: "⏰ @{user} 认领的 `{path}`（{locale}）已超过 {ttlDays} 天未提交 PR，已自动释放，欢迎重新认领。",
+	pr_closed: "↩️ @{user} 的 PR 已关闭未合并，已释放：{paths}",
+	dir_skipped: "📚 `{dir}` 认领 {claimed} 个文件；{skippedCount} 个已被认领，自动跳过：{skipped}"
+};
+function message(config, key, vars = {}) {
+	return (config.messages[key] ?? DEFAULT_MESSAGES[key] ?? key).replace(/\{(\w+)\}/g, (match, name) => vars[name] ?? match);
+}
+//#endregion
+//#region src/model.ts
+const STATE_OPEN = "<!-- LUNARIA-CLAIM:STATE v1 -->";
+const STATE_CLOSE = "<!-- /LUNARIA-CLAIM:STATE -->";
+const FILES_OPEN = "<!-- LUNARIA-CLAIM:FILES -->";
+const FILES_CLOSE = "<!-- /LUNARIA-CLAIM:FILES -->";
+function fileKey(locale, sharedPath) {
+	return `${locale}::${sharedPath}`;
+}
+function activeClaims(state) {
+	return state.claims.filter((claim) => !claim.releasedAt);
+}
+function groupByLocale(files) {
+	const map = /* @__PURE__ */ new Map();
+	for (const file of files) {
+		const list = map.get(file.locale) ?? [];
+		list.push(file);
+		map.set(file.locale, list);
+	}
+	return [...map.entries()].map(([locale, sectionFiles]) => ({
+		locale,
+		files: sectionFiles
+	})).sort((a, b) => a.locale.localeCompare(b.locale));
+}
+//#endregion
+//#region src/utils.ts
+function escapeRegExp(value) {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+//#endregion
+//#region src/state.ts
+const STATE_BLOCK_RE = new RegExp(`${escapeRegExp(STATE_OPEN)}\\n(?:<!--\\n)?([\\s\\S]*?)(?:\\n-->)?\\n${escapeRegExp(STATE_CLOSE)}`);
+function serializeState(state) {
+	return `${STATE_OPEN}\n<!--\n${JSON.stringify(state)}\n-->\n${STATE_CLOSE}`;
+}
+/** 状态块损坏时返回 null，由调用方决定走模板重建或报错 */
+function parseState(body) {
+	const match = STATE_BLOCK_RE.exec(body);
+	if (!match?.[1]) return null;
+	try {
+		const parsed = JSON.parse(match[1]);
+		return isTrackerState(parsed) ? parsed : null;
+	} catch {
+		return null;
+	}
+}
+function isTrackerState(value) {
+	if (typeof value !== "object" || value === null) return false;
+	const candidate = value;
+	return candidate.version === 1 && Array.isArray(candidate.files) && Array.isArray(candidate.claims);
+}
+//#endregion
+//#region src/render.ts
+const STATE_REGION_RE = new RegExp(`${escapeRegExp(STATE_OPEN)}\\n[\\s\\S]*?\\n${escapeRegExp(STATE_CLOSE)}`);
+/** 默认模板的 FILES 标记区（含标记行整体） */
+const FILES_REGION_RE = new RegExp(`${escapeRegExp(FILES_OPEN)}[\\s\\S]*?${escapeRegExp(FILES_CLOSE)}`);
+/** {{files}} 或 {{files_<lang>}}，lang 为 lunaria 配置里的语言代码（如 ja、zh-CN） */
+const FILES_PLACEHOLDER_RE = /\{\{\s*files(?:_([A-Za-z0-9-]+))?\s*\}\}/g;
+/** 模板里是否存在按语言分区占位符（{{files_<lang>}}） */
+const PER_LOCALE_PLACEHOLDER_RE = /\{\{\s*files_[A-Za-z0-9-]+\s*\}\}/;
+function renderOptions(config, repo, files) {
+	return {
+		collapseThreshold: config.collapseThreshold,
+		fileListStyle: config.fileListStyle,
+		repoUrl: repo ? `https://github.com/${repo.owner}/${repo.repo}` : void 0,
+		branch: files ? resolveBranch(files) : "main"
+	};
+}
+/** 列表展示的路径：目标语言文件（localizationPath）优先，缺省退到 sharedPath */
+function displayPath(file) {
+	return file.localizationPath ?? file.sharedPath;
+}
+/** 从 sourceUrl（.../blob/<branch>/...）推断默认分支 */
+function resolveBranch(files) {
+	for (const file of files) {
+		const match = /\/blob\/([^/]+)\//.exec(file.sourceUrl ?? "");
+		if (match?.[1]) return match[1];
+	}
+	return "main";
+}
+function applyPlaceholders(template, vars) {
+	return replaceOutsideHtmlComments(template, /\{\{\s*([a-z_]+)\s*\}\}/gi, (match, key) => vars[key] ?? match);
+}
+/** 只替换 HTML 注释之外的占位符——注释里的 `{{...}}` 是给人看的示例，不该被展开 */
+function replaceOutsideHtmlComments(source, pattern, replacer) {
+	const commentRe = /<!--[\s\S]*?-->/g;
+	let out = "";
+	let cursor = 0;
+	for (const comment of source.matchAll(commentRe)) {
+		const start = comment.index ?? 0;
+		out += source.slice(cursor, start).replace(pattern, replacer);
+		out += comment[0];
+		cursor = start + comment[0].length;
+	}
+	out += source.slice(cursor).replace(pattern, replacer);
+	return out;
+}
+function hasOutsideComments(source, pattern) {
+	const re = new RegExp(pattern.source);
+	const commentRe = /<!--[\s\S]*?-->/g;
+	let cursor = 0;
+	for (const comment of source.matchAll(commentRe)) {
+		const start = comment.index ?? 0;
+		if (re.test(source.slice(cursor, start))) return true;
+		cursor = start + comment[0].length;
+	}
+	return re.test(source.slice(cursor));
+}
+/**
+* 用 state + 清单重渲染 body：
+* - `<!-- LUNARIA-CLAIM:STATE v1 -->` 状态块整体替换（JSON 在注释里，正文不可见）；
+* - `{{files}}` 渲染所有语言的清单，`{{files_<lang>}}` 渲染单个语言（可散置、可插入任意文字）；
+* 语言标题由模板书写（占位符周围），bot 不渲染标题。
+* 其余内容原样保留。
+*/
+function renderBody(body, sections, state, options) {
+	if (!STATE_REGION_RE.test(body)) throw new Error("body is missing the LUNARIA-CLAIM:STATE markers");
+	const claimsByFile = new Map(activeClaims(state).map((claim) => [fileKey(claim.locale, claim.path), claim]));
+	const byLocale = new Map(sections.map((section) => [section.locale, renderSection(section, claimsByFile, options)]));
+	const all = sections.filter((section) => section.files.length > 0).map((section) => byLocale.get(section.locale) ?? "").join("\n\n");
+	if (!hasOutsideComments(body, FILES_PLACEHOLDER_RE)) {
+		if (!FILES_REGION_RE.test(body)) throw new Error("body is missing {{files}} or a {{files_<lang>}} placeholder (placeholders inside HTML comments are examples, never expanded)");
+		const overlay = `${FILES_OPEN}\n${all}\n\n${serializeState(state)}\n${FILES_CLOSE}`;
+		return body.replace(FILES_REGION_RE, () => overlay).replace(STATE_REGION_RE, () => serializeState(state));
+	}
+	return replaceOutsideHtmlComments(body, FILES_PLACEHOLDER_RE, (match, locale) => {
+		if (!locale) return all;
+		return byLocale.get(locale) ?? match;
+	}).replace(STATE_REGION_RE, () => serializeState(state));
+}
+/**
+* 更新已有 issue 的统一入口：优先在原正文上原位覆盖（保留用户手写内容）；
+* 正文已不可用（无占位符也无标记区，如多占位符模板）时回退到按模板整体重建。
+*/
+function recomposeBody(body, template, sections, state, vars, options) {
+	if (PER_LOCALE_PLACEHOLDER_RE.test(template)) return applyPlaceholders(renderBody(template, sections, state, options), vars);
+	try {
+		return applyPlaceholders(renderBody(body, sections, state, options), vars);
+	} catch {
+		return applyPlaceholders(renderBody(template, sections, state, options), vars);
+	}
+}
+/**
+* 从 body 的可见清单解析勾选状态（文件行与目录行都算）。
+* 语言上下文取最近的上方 `### 🌐 <lang>` 标题；没有任何标题时 locale 记空，
+* 由调用方（applyViewEdits）按路径兜底匹配。
+*/
+function parseViewCheckboxes(body) {
+	const HEADING_RE = /^### 🌐 ([A-Za-z0-9-]+)$/;
+	const CHECKBOX_RE = /^ {0,10}- \[([ xX])\] `([^`]+)`/;
+	const entries = [];
+	let locale = "";
+	for (const line of body.split("\n")) {
+		const heading = HEADING_RE.exec(line.trimEnd());
+		if (heading?.[1]) {
+			locale = heading[1];
+			continue;
+		}
+		const checkbox = CHECKBOX_RE.exec(line);
+		if (!checkbox?.[1] || !checkbox[2]) continue;
+		entries.push({
+			locale,
+			sharedPath: checkbox[2],
+			checked: checkbox[1] !== " "
+		});
+	}
+	return entries;
+}
+/** 区块不渲染语言标题：标题属于模板排版（占位符周围由用户书写） */
+function renderSection(section, claimsByFile, options) {
+	const lines = [];
+	if (options.fileListStyle === "tree") renderTree(buildTree(section.files), 0, "", lines, claimsByFile, options);
+	else for (const file of section.files) lines.push(renderFileLine(file, claimsByFile, options));
+	if (section.files.length > options.collapseThreshold) return `<details><summary>共 ${section.files.length} 个文件待处理（点击展开）</summary>\n\n${lines.join("\n")}\n\n</details>`;
+	return lines.join("\n");
+}
+function buildTree(files) {
+	const root = {
+		name: "",
+		dirs: /* @__PURE__ */ new Map(),
+		files: []
+	};
+	for (const file of files) {
+		const parts = displayPath(file).split("/");
+		let node = root;
+		for (let i = 0; i < parts.length - 1; i++) {
+			const segment = parts[i];
+			const child = node.dirs.get(segment) ?? {
+				name: segment,
+				dirs: /* @__PURE__ */ new Map(),
+				files: []
+			};
+			node.dirs.set(segment, child);
+			node = child;
+		}
+		node.files.push(file);
+	}
+	return root;
+}
+/** 目录在前、文件在后，各自按路径排序；目录行可勾选（子树全部认领即打勾），叶子始终输出完整 sharedPath */
+function renderTree(node, depth, dirPath, lines, claimsByFile, options) {
+	const pad = "  ".repeat(depth);
+	const dirs = [...node.dirs.values()].sort((a, b) => a.name.localeCompare(b.name));
+	const files = [...node.files].sort((a, b) => a.sharedPath.localeCompare(b.sharedPath));
+	for (const dir of dirs) {
+		const allClaimed = collectFiles(dir).every((file) => claimsByFile.has(fileKey(file.locale, file.sharedPath)));
+		const full = dirPath ? `${dirPath}/${dir.name}` : dir.name;
+		const label = options.repoUrl ? `[\`${dir.name}/\`](${options.repoUrl}/tree/${options.branch ?? "main"}/${full})` : `\`${dir.name}/\``;
+		lines.push(`${pad}- [${allClaimed ? "x" : " "}] ${label}`);
+		renderTree(dir, depth + 1, full, lines, claimsByFile, options);
+	}
+	for (const file of files) lines.push(`${pad}${renderFileLine(file, claimsByFile, options)}`);
+}
+function collectFiles(node) {
+	return [...node.files, ...[...node.dirs.values()].flatMap(collectFiles)];
+}
+function renderFileLine(file, claimsByFile, options) {
+	const claim = claimsByFile.get(fileKey(file.locale, file.sharedPath));
+	const checked = claim || file.status === "done" ? "x" : " ";
+	const repoUrl = options.repoUrl ?? "";
+	const branch = options.branch ?? "main";
+	const actionUrl = repoUrl && file.localizationPath ? file.status === "missing" ? `${repoUrl}/new/${branch}?filename=${file.localizationPath}` : `${repoUrl}/edit/${branch}/${file.localizationPath}` : "";
+	const shown = displayPath(file);
+	const pathText = actionUrl ? `[\`${shown}\`](${actionUrl})` : `\`${shown}\``;
+	let tail = "";
+	if (claim) tail = ` — @${claim.user} · ${claim.claimedAt.slice(0, 10)}${claim.prUrl ? ` · [PR](${claim.prUrl})` : ""}`;
+	else if (file.status !== "done") {
+		const refs = [];
+		if (file.status === "missing" && actionUrl) refs.push(`[Create file](${actionUrl})`);
+		if (repoUrl && file.sourceUrl) refs.push(`[source](${file.sourceUrl})`);
+		if (repoUrl && file.sourceHistoryUrl) refs.push(`[history](${file.sourceHistoryUrl})`);
+		if (refs.length > 0) tail = ` · ${refs.join(" · ")}`;
+	}
+	return `- [${checked}] ${pathText}${tail}`;
+}
+//#endregion
+//#region src/resolve.ts
+/**
+* 把用户输入的路径 token 解析为清单条目（单个文件或整个目录）。接受：
+* sharedPath、仓库真实路径（含语言目录）、`语言/路径` 简写、目录前缀（含尾部斜杠）、裸文件名。
+*/
+function resolveTargets(tokens, state) {
+	const entries = [];
+	const failures = [];
+	for (const raw of tokens) {
+		const token = normalizeToken(raw);
+		const candidates = scopeByLocale(token, matchFiles(token, state.files));
+		if (candidates.length === 0) failures.push({
+			token,
+			reason: "unknown",
+			candidates: []
+		});
+		else if (isDirToken(token, candidates)) entries.push({
+			token,
+			kind: "dir",
+			files: candidates
+		});
+		else {
+			const first = candidates[0];
+			if (candidates.length === 1 && first) entries.push({
+				token,
+				kind: "file",
+				files: [first]
+			});
+			else failures.push({
+				token,
+				reason: "ambiguous",
+				candidates: candidates.slice(0, 3).map((file) => `${file.sharedPath}（${file.locale}）`)
+			});
+		}
+	}
+	return {
+		entries,
+		failures
+	};
+}
+function normalizeToken(token) {
+	return token.replace(/^\.\//, "").replace(/^\/+|\/+$/g, "");
+}
+function matchFiles(token, files) {
+	const claimable = files.filter((file) => file.status !== "done");
+	const matches = /* @__PURE__ */ new Map();
+	const add = (file) => matches.set(fileKey(file.locale, file.sharedPath), file);
+	const tokenStem = token.replace(/\.[^.]+$/, "");
+	for (const file of claimable) {
+		if (file.sharedPath === token || file.sharedPath.replace(/\.[^.]+$/, "") === tokenStem) {
+			add(file);
+			continue;
+		}
+		if (file.localizationPath === token || file.localizationPath?.endsWith(`/${token}`)) add(file);
+	}
+	if (matches.size === 0) {
+		for (const file of claimable) if (token.endsWith(`/${file.sharedPath}`)) add(file);
+	}
+	for (const file of claimable) if (file.sharedPath.startsWith(`${token}/`)) add(file);
+	for (const file of claimable) if (file.localizationPath?.startsWith(`${token}/`)) add(file);
+	if (!token.includes("/")) {
+		for (const file of claimable) if (file.sharedPath.slice(file.sharedPath.lastIndexOf("/") + 1) === token) add(file);
+	}
+	return [...matches.values()];
+}
+/** token 对全部候选都是目录前缀时视为目录认领（否则视为歧义的文件匹配） */
+function isDirToken(token, candidates) {
+	return candidates.every((file) => file.sharedPath.startsWith(`${token}/`) || file.localizationPath?.startsWith(`${token}/`));
+}
+/** token 里显式包含语言段（如 `en/foo.md`）时用它消歧 */
+function scopeByLocale(token, candidates) {
+	if (candidates.length <= 1) return candidates;
+	const segments = new Set(token.split("/"));
+	const scoped = candidates.filter((file) => segments.has(file.locale));
+	return scoped.length > 0 ? scoped : candidates;
+}
+//#endregion
+//#region src/claims.ts
+/**
+* 把解析出的条目应用到状态：单文件认领一条，目录认领展开为其下所有文件。
+* 已被他人认领的跳过（目录级返回聚合信息），自己已认领的幂等视为成功。
+*/
+function applyClaimEntries(state, entries, user, claimedAt, commentId, commentUrl) {
+	let created = 0;
+	const skipped = [];
+	for (const entry of entries) for (const file of entry.files) {
+		const key = fileKey(file.locale, file.sharedPath);
+		const existing = activeClaims(state).find((claim) => fileKey(claim.locale, claim.path) === key);
+		if (existing && existing.user !== user) {
+			skipped.push({
+				path: file.sharedPath,
+				locale: file.locale,
+				claimer: existing.user,
+				dir: entry.kind === "dir" ? entry.token : void 0
+			});
+			continue;
+		}
+		if (!existing) {
+			state.claims.push({
+				path: file.sharedPath,
+				locale: file.locale,
+				user,
+				claimedAt,
+				commentId,
+				commentUrl
+			});
+			created++;
+		}
+	}
+	return {
+		created,
+		skipped
+	};
+}
+const CLAIM_RE = /^\/claim\s+(.+)$/i;
+const RELEASE_RE = /^\/(?:release|give-up)\s+(.+)$/i;
+/** 每行一条命令，未匹配的行忽略 */
+function parseClaimComment(body) {
+	const commands = [];
+	for (const rawLine of body.split("\n")) {
+		const line = rawLine.trim();
+		const claim = CLAIM_RE.exec(line);
+		if (claim?.[1]) {
+			const paths = splitPaths(claim[1]);
+			if (paths.length > 0) commands.push({
+				kind: "claim",
+				paths
+			});
+			continue;
+		}
+		const release = RELEASE_RE.exec(line);
+		if (release?.[1]) {
+			const paths = splitPaths(release[1]);
+			if (paths.length > 0) commands.push({
+				kind: "release",
+				paths
+			});
+		}
+	}
+	return commands;
+}
+function splitPaths(fragment) {
+	return fragment.split(/\s+/).map((token) => token.replace(/^\[`(.+?)`\]\(.+?\)$/, "$1").replace(/^\[(.+?)\]\(.+?\)$/, "$1").replace(/^[`'"]+/, "").replace(/[`'".,;，。]+$/, "")).filter((token) => token.length > 0 && !token.startsWith("<"));
+}
+/** 宽松模式：从自由文本中找出清单里出现过的文件路径 */
+function extractKnownPaths(text, known) {
+	return known.filter((path) => new RegExp(`(?<![\\w/.-])${escapeRegExp(path)}(?![\\w/.-])`).test(text));
+}
+function hasIntent(body, keywords) {
+	const lower = body.toLowerCase();
+	return keywords.some((keyword) => lower.includes(keyword.toLowerCase()));
+}
+function findExpiredClaims(state, now, ttlDays) {
+	const ttlMs = ttlDays * 24 * 60 * 60 * 1e3;
+	return activeClaims(state).filter((claim) => !claim.prUrl && now.getTime() - Date.parse(claim.claimedAt) > ttlMs);
+}
+/**
+* 管理员手动编辑兼容：把可见清单里的"取消勾选 / 整行删除"反写回状态，按手动释放处理。
+* 读 body 时如果连一个语言区块都没解析出来，放弃本次对账（避免误释放）。
+*/
+function applyViewEdits(state, body, now) {
+	const view = parseViewCheckboxes(body);
+	if (view.length === 0) return 0;
+	const exact = /* @__PURE__ */ new Map();
+	const loose = /* @__PURE__ */ new Map();
+	for (const entry of view) if (entry.locale) exact.set(fileKey(entry.locale, entry.sharedPath), entry);
+	else loose.set(entry.sharedPath, entry);
+	const findEntry = (claim) => {
+		const keys = [fileKey(claim.locale, claim.path)];
+		const file = state.files.find((candidate) => candidate.locale === claim.locale && candidate.sharedPath === claim.path);
+		if (file?.localizationPath) keys.push(fileKey(claim.locale, file.localizationPath));
+		for (const key of keys) {
+			const hit = exact.get(key);
+			if (hit) return hit;
+		}
+		const looseHit = loose.get(claim.path);
+		if (looseHit) return looseHit;
+		return file?.localizationPath ? loose.get(file.localizationPath) : void 0;
+	};
+	let released = 0;
+	for (const claim of activeClaims(state)) {
+		if (findEntry(claim)?.checked) continue;
+		claim.releasedAt = now.toISOString();
+		claim.releaseReason = "manual";
+		released++;
+	}
+	for (const entry of view) {
+		if (!entry.sharedPath.endsWith("/") || entry.checked) continue;
+		const prefix = entry.sharedPath;
+		for (const claim of activeClaims(state)) {
+			if (!(entry.locale ? claim.locale === entry.locale : true)) continue;
+			const displayPrefixOk = state.files.find((candidate) => candidate.locale === claim.locale && candidate.sharedPath === claim.path)?.localizationPath?.startsWith(prefix) === true;
+			if (claim.path.startsWith(prefix) || displayPrefixOk) {
+				claim.releasedAt = now.toISOString();
+				claim.releaseReason = "manual";
+				released++;
+			}
+		}
+	}
+	return released;
+}
+/**
+* 状态块损坏时的尽力自愈：按时间顺序回放评论里的 /claim、/release 命令，
+* 重建活跃认领。返回值为空时调用方应放弃（评论里没有任何可识别的认领）。
+*/
+function rebuildClaimsFromComments(comments, files, config) {
+	const skippedBot = comments.filter((comment) => comment.user.endsWith("[bot]")).length;
+	const pending = /* @__PURE__ */ new Map();
+	const known = files.map((file) => file.sharedPath);
+	for (const comment of comments) {
+		if (comment.user.endsWith("[bot]")) continue;
+		const commands = parseClaimComment(comment.body);
+		const claimTokens = commands.filter((c) => c.kind === "claim").flatMap((c) => c.paths);
+		const releaseTokens = commands.filter((c) => c.kind === "release").flatMap((c) => c.paths);
+		if (claimTokens.length === 0 && !config.strictClaimSyntax && hasIntent(comment.body, config.lenientKeywords)) claimTokens.push(...extractKnownPaths(comment.body, known));
+		const { entries } = resolveTargets(claimTokens, {
+			version: 1,
+			files: [...files],
+			claims: []
+		});
+		for (const entry of entries) for (const file of entry.files) {
+			const key = `${comment.user}::${fileKey(file.locale, file.sharedPath)}`;
+			if (!pending.has(key)) pending.set(key, {
+				user: comment.user,
+				claimedAt: comment.createdAt,
+				commentId: comment.id,
+				commentUrl: comment.htmlUrl,
+				path: file.sharedPath,
+				locale: file.locale
+			});
+		}
+		const releases = resolveTargets(releaseTokens, {
+			version: 1,
+			files: [...files],
+			claims: []
+		});
+		for (const entry of releases.entries) for (const file of entry.files) pending.delete(`${comment.user}::${fileKey(file.locale, file.sharedPath)}`);
+	}
+	return {
+		claims: [...pending.values()].map((value) => ({ ...value })),
+		skippedBot
+	};
+}
+/** 把解析/应用结果编排成对认领评论的回复：目录级跳过聚合、单文件跳过逐条、失败映射 */
+function composeClaimReplies(input) {
+	const { entries, failures, skipped, config } = input;
+	const replies = [];
+	for (const failure of failures) replies.push(failure.reason === "ambiguous" ? message(config, "ambiguous", {
+		token: failure.token,
+		candidates: failure.candidates.join("、")
+	}) : message(config, "unknown_file", { token: failure.token }));
+	const dirSkips = /* @__PURE__ */ new Map();
+	for (const item of skipped) if (item.dir) {
+		const list = dirSkips.get(item.dir) ?? [];
+		list.push(item);
+		dirSkips.set(item.dir, list);
+	} else replies.push(message(config, "duplicate", {
+		path: item.path,
+		locale: item.locale,
+		claimer: item.claimer
+	}));
+	for (const entry of entries) {
+		if (entry.kind !== "dir") continue;
+		const list = dirSkips.get(entry.token);
+		if (!list) continue;
+		const shown = list.slice(0, 3).map((skip) => `\`${skip.path}\`（@${skip.claimer}）`).join("、");
+		const more = list.length > 3 ? ` 等 ${list.length} 个` : "";
+		replies.push(message(config, "dir_skipped", {
+			dir: entry.token,
+			claimed: String(entry.files.length - list.length),
+			skippedCount: String(list.length),
+			skipped: shown + more
+		}));
+	}
+	return replies;
+}
+//#endregion
 //#region node_modules/universal-user-agent/index.js
 function getUserAgent() {
 	if (typeof navigator === "object" && "userAgent" in navigator) return navigator.userAgent;
@@ -53359,531 +53884,6 @@ function createGitHubApi(token, repo) {
 	};
 }
 //#endregion
-//#region src/messages.ts
-const DEFAULT_MESSAGES = {
-	duplicate: "👀 `{path}`（{locale}）已被 @{claimer} 认领，请换一个文件。",
-	unknown_file: "❓ 清单里没有 `{token}`（或已翻译完成）。请从清单复制完整路径后重试。",
-	ambiguous: "❓ `{token}` 匹配到多个文件：{candidates}。请用完整路径或加语言前缀，如 `en/{token}`。",
-	expired: "⏰ @{user} 认领的 `{path}`（{locale}）已超过 {ttlDays} 天未提交 PR，已自动释放，欢迎重新认领。",
-	pr_closed: "↩️ @{user} 的 PR 已关闭未合并，已释放：{paths}",
-	dir_skipped: "📚 `{dir}` 认领 {claimed} 个文件；{skippedCount} 个已被认领，自动跳过：{skipped}"
-};
-function message(config, key, vars = {}) {
-	return (config.messages[key] ?? DEFAULT_MESSAGES[key] ?? key).replace(/\{(\w+)\}/g, (match, name) => vars[name] ?? match);
-}
-//#endregion
-//#region src/model.ts
-const STATE_OPEN = "<!-- LUNARIA-CLAIM:STATE v1 -->";
-const STATE_CLOSE = "<!-- /LUNARIA-CLAIM:STATE -->";
-const FILES_OPEN = "<!-- LUNARIA-CLAIM:FILES -->";
-const FILES_CLOSE = "<!-- /LUNARIA-CLAIM:FILES -->";
-function fileKey(locale, sharedPath) {
-	return `${locale}::${sharedPath}`;
-}
-function activeClaims(state) {
-	return state.claims.filter((claim) => !claim.releasedAt);
-}
-function groupByLocale(files) {
-	const map = /* @__PURE__ */ new Map();
-	for (const file of files) {
-		const list = map.get(file.locale) ?? [];
-		list.push(file);
-		map.set(file.locale, list);
-	}
-	return [...map.entries()].map(([locale, sectionFiles]) => ({
-		locale,
-		files: sectionFiles
-	})).sort((a, b) => a.locale.localeCompare(b.locale));
-}
-//#endregion
-//#region src/utils.ts
-function escapeRegExp(value) {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-//#endregion
-//#region src/state.ts
-const STATE_BLOCK_RE = new RegExp(`${escapeRegExp(STATE_OPEN)}\\n(?:<!--\\n)?([\\s\\S]*?)(?:\\n-->)?\\n${escapeRegExp(STATE_CLOSE)}`);
-function serializeState(state) {
-	return `${STATE_OPEN}\n<!--\n${JSON.stringify(state)}\n-->\n${STATE_CLOSE}`;
-}
-/** 状态块损坏时返回 null，由调用方决定走模板重建或报错 */
-function parseState(body) {
-	const match = STATE_BLOCK_RE.exec(body);
-	if (!match?.[1]) return null;
-	try {
-		const parsed = JSON.parse(match[1]);
-		return isTrackerState(parsed) ? parsed : null;
-	} catch {
-		return null;
-	}
-}
-function isTrackerState(value) {
-	if (typeof value !== "object" || value === null) return false;
-	const candidate = value;
-	return candidate.version === 1 && Array.isArray(candidate.files) && Array.isArray(candidate.claims);
-}
-//#endregion
-//#region src/render.ts
-const STATE_REGION_RE = new RegExp(`${escapeRegExp(STATE_OPEN)}\\n[\\s\\S]*?\\n${escapeRegExp(STATE_CLOSE)}`);
-/** 默认模板的 FILES 标记区（含标记行整体） */
-const FILES_REGION_RE = new RegExp(`${escapeRegExp(FILES_OPEN)}[\\s\\S]*?${escapeRegExp(FILES_CLOSE)}`);
-/** {{files}} 或 {{files_<lang>}}，lang 为 lunaria 配置里的语言代码（如 ja、zh-CN） */
-const FILES_PLACEHOLDER_RE = /\{\{\s*files(?:_([A-Za-z0-9-]+))?\s*\}\}/g;
-/** 模板里是否存在按语言分区占位符（{{files_<lang>}}） */
-const PER_LOCALE_PLACEHOLDER_RE = /\{\{\s*files_[A-Za-z0-9-]+\s*\}\}/;
-function renderOptions(config, repo, files) {
-	return {
-		collapseThreshold: config.collapseThreshold,
-		fileListStyle: config.fileListStyle,
-		repoUrl: repo ? `https://github.com/${repo.owner}/${repo.repo}` : void 0,
-		branch: files ? resolveBranch(files) : "main"
-	};
-}
-/** 列表展示的路径：目标语言文件（localizationPath）优先，缺省退到 sharedPath */
-function displayPath(file) {
-	return file.localizationPath ?? file.sharedPath;
-}
-/** 从 sourceUrl（.../blob/<branch>/...）推断默认分支 */
-function resolveBranch(files) {
-	for (const file of files) {
-		const match = /\/blob\/([^/]+)\//.exec(file.sourceUrl ?? "");
-		if (match?.[1]) return match[1];
-	}
-	return "main";
-}
-function applyPlaceholders(template, vars) {
-	return replaceOutsideHtmlComments(template, /\{\{\s*([a-z_]+)\s*\}\}/gi, (match, key) => vars[key] ?? match);
-}
-/** 只替换 HTML 注释之外的占位符——注释里的 `{{...}}` 是给人看的示例，不该被展开 */
-function replaceOutsideHtmlComments(source, pattern, replacer) {
-	const commentRe = /<!--[\s\S]*?-->/g;
-	let out = "";
-	let cursor = 0;
-	for (const comment of source.matchAll(commentRe)) {
-		const start = comment.index ?? 0;
-		out += source.slice(cursor, start).replace(pattern, replacer);
-		out += comment[0];
-		cursor = start + comment[0].length;
-	}
-	out += source.slice(cursor).replace(pattern, replacer);
-	return out;
-}
-function hasOutsideComments(source, pattern) {
-	const re = new RegExp(pattern.source);
-	const commentRe = /<!--[\s\S]*?-->/g;
-	let cursor = 0;
-	for (const comment of source.matchAll(commentRe)) {
-		const start = comment.index ?? 0;
-		if (re.test(source.slice(cursor, start))) return true;
-		cursor = start + comment[0].length;
-	}
-	return re.test(source.slice(cursor));
-}
-/**
-* 用 state + 清单重渲染 body：
-* - `<!-- LUNARIA-CLAIM:STATE v1 -->` 状态块整体替换（JSON 在注释里，正文不可见）；
-* - `{{files}}` 渲染所有语言的清单，`{{files_<lang>}}` 渲染单个语言（可散置、可插入任意文字）；
-* 语言标题由模板书写（占位符周围），bot 不渲染标题。
-* 其余内容原样保留。
-*/
-function renderBody(body, sections, state, options) {
-	if (!STATE_REGION_RE.test(body)) throw new Error("body is missing the LUNARIA-CLAIM:STATE markers");
-	const claimsByFile = new Map(activeClaims(state).map((claim) => [fileKey(claim.locale, claim.path), claim]));
-	const byLocale = new Map(sections.map((section) => [section.locale, renderSection(section, claimsByFile, options)]));
-	const all = sections.filter((section) => section.files.length > 0).map((section) => byLocale.get(section.locale) ?? "").join("\n\n");
-	if (!hasOutsideComments(body, FILES_PLACEHOLDER_RE)) {
-		if (!FILES_REGION_RE.test(body)) throw new Error("body is missing {{files}} or a {{files_<lang>}} placeholder (placeholders inside HTML comments are examples, never expanded)");
-		const overlay = `${FILES_OPEN}\n${all}\n\n${serializeState(state)}\n${FILES_CLOSE}`;
-		return body.replace(FILES_REGION_RE, () => overlay).replace(STATE_REGION_RE, () => serializeState(state));
-	}
-	return replaceOutsideHtmlComments(body, FILES_PLACEHOLDER_RE, (match, locale) => {
-		if (!locale) return all;
-		return byLocale.get(locale) ?? match;
-	}).replace(STATE_REGION_RE, () => serializeState(state));
-}
-/**
-* 更新已有 issue 的统一入口：优先在原正文上原位覆盖（保留用户手写内容）；
-* 正文已不可用（无占位符也无标记区，如多占位符模板）时回退到按模板整体重建。
-*/
-function recomposeBody(body, template, sections, state, vars, options) {
-	if (PER_LOCALE_PLACEHOLDER_RE.test(template)) return applyPlaceholders(renderBody(template, sections, state, options), vars);
-	try {
-		return applyPlaceholders(renderBody(body, sections, state, options), vars);
-	} catch {
-		return applyPlaceholders(renderBody(template, sections, state, options), vars);
-	}
-}
-/**
-* 从 body 的可见清单解析勾选状态（文件行与目录行都算）。
-* 语言上下文取最近的上方 `### 🌐 <lang>` 标题；没有任何标题时 locale 记空，
-* 由调用方（applyViewEdits）按路径兜底匹配。
-*/
-function parseViewCheckboxes(body) {
-	const HEADING_RE = /^### 🌐 ([A-Za-z0-9-]+)$/;
-	const CHECKBOX_RE = /^ {0,10}- \[([ xX])\] `([^`]+)`/;
-	const entries = [];
-	let locale = "";
-	for (const line of body.split("\n")) {
-		const heading = HEADING_RE.exec(line.trimEnd());
-		if (heading?.[1]) {
-			locale = heading[1];
-			continue;
-		}
-		const checkbox = CHECKBOX_RE.exec(line);
-		if (!checkbox?.[1] || !checkbox[2]) continue;
-		entries.push({
-			locale,
-			sharedPath: checkbox[2],
-			checked: checkbox[1] !== " "
-		});
-	}
-	return entries;
-}
-/** 区块不渲染语言标题：标题属于模板排版（占位符周围由用户书写） */
-function renderSection(section, claimsByFile, options) {
-	const lines = [];
-	if (options.fileListStyle === "tree") renderTree(buildTree(section.files), 0, "", lines, claimsByFile, options);
-	else for (const file of section.files) lines.push(renderFileLine(file, claimsByFile, options));
-	if (section.files.length > options.collapseThreshold) return `<details><summary>共 ${section.files.length} 个文件待处理（点击展开）</summary>\n\n${lines.join("\n")}\n\n</details>`;
-	return lines.join("\n");
-}
-function buildTree(files) {
-	const root = {
-		name: "",
-		dirs: /* @__PURE__ */ new Map(),
-		files: []
-	};
-	for (const file of files) {
-		const parts = displayPath(file).split("/");
-		let node = root;
-		for (let i = 0; i < parts.length - 1; i++) {
-			const segment = parts[i];
-			const child = node.dirs.get(segment) ?? {
-				name: segment,
-				dirs: /* @__PURE__ */ new Map(),
-				files: []
-			};
-			node.dirs.set(segment, child);
-			node = child;
-		}
-		node.files.push(file);
-	}
-	return root;
-}
-/** 目录在前、文件在后，各自按路径排序；目录行可勾选（子树全部认领即打勾），叶子始终输出完整 sharedPath */
-function renderTree(node, depth, dirPath, lines, claimsByFile, options) {
-	const pad = "  ".repeat(depth);
-	const dirs = [...node.dirs.values()].sort((a, b) => a.name.localeCompare(b.name));
-	const files = [...node.files].sort((a, b) => a.sharedPath.localeCompare(b.sharedPath));
-	for (const dir of dirs) {
-		const allClaimed = collectFiles(dir).every((file) => claimsByFile.has(fileKey(file.locale, file.sharedPath)));
-		const full = dirPath ? `${dirPath}/${dir.name}` : dir.name;
-		const label = options.repoUrl ? `[\`${dir.name}/\`](${options.repoUrl}/tree/${options.branch ?? "main"}/${full})` : `\`${dir.name}/\``;
-		lines.push(`${pad}- [${allClaimed ? "x" : " "}] ${label}`);
-		renderTree(dir, depth + 1, full, lines, claimsByFile, options);
-	}
-	for (const file of files) lines.push(`${pad}${renderFileLine(file, claimsByFile, options)}`);
-}
-function collectFiles(node) {
-	return [...node.files, ...[...node.dirs.values()].flatMap(collectFiles)];
-}
-function renderFileLine(file, claimsByFile, options) {
-	const claim = claimsByFile.get(fileKey(file.locale, file.sharedPath));
-	const checked = claim || file.status === "done" ? "x" : " ";
-	const repoUrl = options.repoUrl ?? "";
-	const branch = options.branch ?? "main";
-	const actionUrl = repoUrl && file.localizationPath ? file.status === "missing" ? `${repoUrl}/new/${branch}?filename=${file.localizationPath}` : `${repoUrl}/edit/${branch}/${file.localizationPath}` : "";
-	const shown = displayPath(file);
-	const pathText = actionUrl ? `[\`${shown}\`](${actionUrl})` : `\`${shown}\``;
-	let tail = "";
-	if (claim) tail = ` — @${claim.user} · ${claim.claimedAt.slice(0, 10)}${claim.prUrl ? ` · [PR](${claim.prUrl})` : ""}`;
-	else if (file.status !== "done") {
-		const refs = [];
-		if (file.status === "missing" && actionUrl) refs.push(`[Create file](${actionUrl})`);
-		if (repoUrl && file.sourceUrl) refs.push(`[source](${file.sourceUrl})`);
-		if (repoUrl && file.sourceHistoryUrl) refs.push(`[history](${file.sourceHistoryUrl})`);
-		if (refs.length > 0) tail = ` · ${refs.join(" · ")}`;
-	}
-	return `- [${checked}] ${pathText}${tail}`;
-}
-//#endregion
-//#region src/resolve.ts
-/**
-* 把用户输入的路径 token 解析为清单条目（单个文件或整个目录）。接受：
-* sharedPath、仓库真实路径（含语言目录）、`语言/路径` 简写、目录前缀（含尾部斜杠）、裸文件名。
-*/
-function resolveTargets(tokens, state) {
-	const entries = [];
-	const failures = [];
-	for (const raw of tokens) {
-		const token = normalizeToken(raw);
-		const candidates = scopeByLocale(token, matchFiles(token, state.files));
-		if (candidates.length === 0) failures.push({
-			token,
-			reason: "unknown",
-			candidates: []
-		});
-		else if (isDirToken(token, candidates)) entries.push({
-			token,
-			kind: "dir",
-			files: candidates
-		});
-		else {
-			const first = candidates[0];
-			if (candidates.length === 1 && first) entries.push({
-				token,
-				kind: "file",
-				files: [first]
-			});
-			else failures.push({
-				token,
-				reason: "ambiguous",
-				candidates: candidates.slice(0, 3).map((file) => `${file.sharedPath}（${file.locale}）`)
-			});
-		}
-	}
-	return {
-		entries,
-		failures
-	};
-}
-function normalizeToken(token) {
-	return token.replace(/^\.\//, "").replace(/^\/+|\/+$/g, "");
-}
-function matchFiles(token, files) {
-	const claimable = files.filter((file) => file.status !== "done");
-	const matches = /* @__PURE__ */ new Map();
-	const add = (file) => matches.set(fileKey(file.locale, file.sharedPath), file);
-	const tokenStem = token.replace(/\.[^.]+$/, "");
-	for (const file of claimable) {
-		if (file.sharedPath === token || file.sharedPath.replace(/\.[^.]+$/, "") === tokenStem) {
-			add(file);
-			continue;
-		}
-		if (file.localizationPath === token || file.localizationPath?.endsWith(`/${token}`)) add(file);
-	}
-	if (matches.size === 0) {
-		for (const file of claimable) if (token.endsWith(`/${file.sharedPath}`)) add(file);
-	}
-	for (const file of claimable) if (file.sharedPath.startsWith(`${token}/`)) add(file);
-	for (const file of claimable) if (file.localizationPath?.startsWith(`${token}/`)) add(file);
-	if (!token.includes("/")) {
-		for (const file of claimable) if (file.sharedPath.slice(file.sharedPath.lastIndexOf("/") + 1) === token) add(file);
-	}
-	return [...matches.values()];
-}
-/** token 对全部候选都是目录前缀时视为目录认领（否则视为歧义的文件匹配） */
-function isDirToken(token, candidates) {
-	return candidates.every((file) => file.sharedPath.startsWith(`${token}/`) || file.localizationPath?.startsWith(`${token}/`));
-}
-/** token 里显式包含语言段（如 `en/foo.md`）时用它消歧 */
-function scopeByLocale(token, candidates) {
-	if (candidates.length <= 1) return candidates;
-	const segments = new Set(token.split("/"));
-	const scoped = candidates.filter((file) => segments.has(file.locale));
-	return scoped.length > 0 ? scoped : candidates;
-}
-//#endregion
-//#region src/claims.ts
-/**
-* 把解析出的条目应用到状态：单文件认领一条，目录认领展开为其下所有文件。
-* 已被他人认领的跳过（目录级返回聚合信息），自己已认领的幂等视为成功。
-*/
-function applyClaimEntries(state, entries, user, claimedAt, commentId, commentUrl) {
-	let created = 0;
-	const skipped = [];
-	for (const entry of entries) for (const file of entry.files) {
-		const key = fileKey(file.locale, file.sharedPath);
-		const existing = activeClaims(state).find((claim) => fileKey(claim.locale, claim.path) === key);
-		if (existing && existing.user !== user) {
-			skipped.push({
-				path: file.sharedPath,
-				locale: file.locale,
-				claimer: existing.user,
-				dir: entry.kind === "dir" ? entry.token : void 0
-			});
-			continue;
-		}
-		if (!existing) {
-			state.claims.push({
-				path: file.sharedPath,
-				locale: file.locale,
-				user,
-				claimedAt,
-				commentId,
-				commentUrl
-			});
-			created++;
-		}
-	}
-	return {
-		created,
-		skipped
-	};
-}
-const CLAIM_RE = /^\/claim\s+(.+)$/i;
-const RELEASE_RE = /^\/(?:release|give-up)\s+(.+)$/i;
-/** 每行一条命令，未匹配的行忽略 */
-function parseClaimComment(body) {
-	const commands = [];
-	for (const rawLine of body.split("\n")) {
-		const line = rawLine.trim();
-		const claim = CLAIM_RE.exec(line);
-		if (claim?.[1]) {
-			const paths = splitPaths(claim[1]);
-			if (paths.length > 0) commands.push({
-				kind: "claim",
-				paths
-			});
-			continue;
-		}
-		const release = RELEASE_RE.exec(line);
-		if (release?.[1]) {
-			const paths = splitPaths(release[1]);
-			if (paths.length > 0) commands.push({
-				kind: "release",
-				paths
-			});
-		}
-	}
-	return commands;
-}
-function splitPaths(fragment) {
-	return fragment.split(/\s+/).map((token) => token.replace(/^\[`(.+?)`\]\(.+?\)$/, "$1").replace(/^\[(.+?)\]\(.+?\)$/, "$1").replace(/^[`'"]+/, "").replace(/[`'".,;，。]+$/, "")).filter((token) => token.length > 0 && !token.startsWith("<"));
-}
-/** 宽松模式：从自由文本中找出清单里出现过的文件路径 */
-function extractKnownPaths(text, known) {
-	return known.filter((path) => new RegExp(`(?<![\\w/.-])${escapeRegExp(path)}(?![\\w/.-])`).test(text));
-}
-function hasIntent(body, keywords) {
-	const lower = body.toLowerCase();
-	return keywords.some((keyword) => lower.includes(keyword.toLowerCase()));
-}
-function findExpiredClaims(state, now, ttlDays) {
-	const ttlMs = ttlDays * 24 * 60 * 60 * 1e3;
-	return activeClaims(state).filter((claim) => !claim.prUrl && now.getTime() - Date.parse(claim.claimedAt) > ttlMs);
-}
-/**
-* 管理员手动编辑兼容：把可见清单里的"取消勾选 / 整行删除"反写回状态，按手动释放处理。
-* 读 body 时如果连一个语言区块都没解析出来，放弃本次对账（避免误释放）。
-*/
-function applyViewEdits(state, body, now) {
-	const view = parseViewCheckboxes(body);
-	if (view.length === 0) return 0;
-	const exact = /* @__PURE__ */ new Map();
-	const loose = /* @__PURE__ */ new Map();
-	for (const entry of view) if (entry.locale) exact.set(fileKey(entry.locale, entry.sharedPath), entry);
-	else loose.set(entry.sharedPath, entry);
-	const findEntry = (claim) => {
-		const keys = [fileKey(claim.locale, claim.path)];
-		const file = state.files.find((candidate) => candidate.locale === claim.locale && candidate.sharedPath === claim.path);
-		if (file?.localizationPath) keys.push(fileKey(claim.locale, file.localizationPath));
-		for (const key of keys) {
-			const hit = exact.get(key);
-			if (hit) return hit;
-		}
-		const looseHit = loose.get(claim.path);
-		if (looseHit) return looseHit;
-		return file?.localizationPath ? loose.get(file.localizationPath) : void 0;
-	};
-	let released = 0;
-	for (const claim of activeClaims(state)) {
-		if (findEntry(claim)?.checked) continue;
-		claim.releasedAt = now.toISOString();
-		claim.releaseReason = "manual";
-		released++;
-	}
-	for (const entry of view) {
-		if (!entry.sharedPath.endsWith("/") || entry.checked) continue;
-		const prefix = entry.sharedPath;
-		for (const claim of activeClaims(state)) {
-			if (!(entry.locale ? claim.locale === entry.locale : true)) continue;
-			const displayPrefixOk = state.files.find((candidate) => candidate.locale === claim.locale && candidate.sharedPath === claim.path)?.localizationPath?.startsWith(prefix) === true;
-			if (claim.path.startsWith(prefix) || displayPrefixOk) {
-				claim.releasedAt = now.toISOString();
-				claim.releaseReason = "manual";
-				released++;
-			}
-		}
-	}
-	return released;
-}
-/**
-* 状态块损坏时的尽力自愈：按时间顺序回放评论里的 /claim、/release 命令，
-* 重建活跃认领。返回值为空时调用方应放弃（评论里没有任何可识别的认领）。
-*/
-function rebuildClaimsFromComments(comments, files, config) {
-	const skippedBot = comments.filter((comment) => comment.user.endsWith("[bot]")).length;
-	const pending = /* @__PURE__ */ new Map();
-	const known = files.map((file) => file.sharedPath);
-	for (const comment of comments) {
-		if (comment.user.endsWith("[bot]")) continue;
-		const commands = parseClaimComment(comment.body);
-		const claimTokens = commands.filter((c) => c.kind === "claim").flatMap((c) => c.paths);
-		const releaseTokens = commands.filter((c) => c.kind === "release").flatMap((c) => c.paths);
-		if (claimTokens.length === 0 && !config.strictClaimSyntax && hasIntent(comment.body, config.lenientKeywords)) claimTokens.push(...extractKnownPaths(comment.body, known));
-		const { entries } = resolveTargets(claimTokens, {
-			version: 1,
-			files: [...files],
-			claims: []
-		});
-		for (const entry of entries) for (const file of entry.files) {
-			const key = `${comment.user}::${fileKey(file.locale, file.sharedPath)}`;
-			if (!pending.has(key)) pending.set(key, {
-				user: comment.user,
-				claimedAt: comment.createdAt,
-				commentId: comment.id,
-				commentUrl: comment.htmlUrl,
-				path: file.sharedPath,
-				locale: file.locale
-			});
-		}
-		const releases = resolveTargets(releaseTokens, {
-			version: 1,
-			files: [...files],
-			claims: []
-		});
-		for (const entry of releases.entries) for (const file of entry.files) pending.delete(`${comment.user}::${fileKey(file.locale, file.sharedPath)}`);
-	}
-	return {
-		claims: [...pending.values()].map((value) => ({ ...value })),
-		skippedBot
-	};
-}
-/** 把解析/应用结果编排成对认领评论的回复：目录级跳过聚合、单文件跳过逐条、失败映射 */
-function composeClaimReplies(input) {
-	const { entries, failures, skipped, config } = input;
-	const replies = [];
-	for (const failure of failures) replies.push(failure.reason === "ambiguous" ? message(config, "ambiguous", {
-		token: failure.token,
-		candidates: failure.candidates.join("、")
-	}) : message(config, "unknown_file", { token: failure.token }));
-	const dirSkips = /* @__PURE__ */ new Map();
-	for (const item of skipped) if (item.dir) {
-		const list = dirSkips.get(item.dir) ?? [];
-		list.push(item);
-		dirSkips.set(item.dir, list);
-	} else replies.push(message(config, "duplicate", {
-		path: item.path,
-		locale: item.locale,
-		claimer: item.claimer
-	}));
-	for (const entry of entries) {
-		if (entry.kind !== "dir") continue;
-		const list = dirSkips.get(entry.token);
-		if (!list) continue;
-		const shown = list.slice(0, 3).map((skip) => `\`${skip.path}\`（@${skip.claimer}）`).join("、");
-		const more = list.length > 3 ? ` 等 ${list.length} 个` : "";
-		replies.push(message(config, "dir_skipped", {
-			dir: entry.token,
-			claimed: String(entry.files.length - list.length),
-			skippedCount: String(list.length),
-			skipped: shown + more
-		}));
-	}
-	return replies;
-}
-//#endregion
 //#region src/event.ts
 function readEventPayload() {
 	const path = process.env.GITHUB_EVENT_PATH;
@@ -53904,10 +53904,7 @@ async function runClaim(ctx) {
 		info("comment is not on the tracker issue, skipping");
 		return;
 	}
-	const state = parseState(issue.body);
-	if (!state) throw new Error(`tracker issue #${issue.number} has no readable state block`);
-	const releasedByView = applyViewEdits(state, issue.body, ctx.now);
-	if (releasedByView > 0) info(`manual view edits released ${releasedByView} claim(s) before claim processing`);
+	const { state } = loadTrackerState(ctx, issue, "claim processing");
 	const body = event.comment.body;
 	const commands = parseClaimComment(body);
 	const claimTokens = commands.filter((c) => c.kind === "claim").flatMap((c) => c.paths);
@@ -53944,10 +53941,7 @@ async function runClaim(ctx) {
 	}
 	const changed = before !== JSON.stringify(state.claims);
 	if (changed) {
-		const updated = recomposeBody(issue.body, readFileSync(ctx.config.templatePath, "utf-8"), groupByLocale(state.files), state, {
-			ttl_days: String(ctx.config.ttlDays),
-			dashboard_url: ctx.config.dashboardUrl ?? ""
-		}, renderOptions(ctx.config, ctx.repo, state.files));
+		const updated = recomposeTrackerBody(ctx, issue.body, state);
 		await ctx.api.updateIssueBody(issue.number, updated);
 	}
 	if (claimedAny) await ctx.api.reactToComment(event.comment.id, "rocket");
@@ -53983,10 +53977,7 @@ async function runExpire(ctx) {
 		info("no tracker issue found, nothing to sweep");
 		return;
 	}
-	const state = parseState(issue.body);
-	if (!state) throw new Error(`tracker issue #${issue.number} has no readable state block`);
-	const releasedByView = applyViewEdits(state, issue.body, ctx.now);
-	if (releasedByView > 0) info(`manual view edits released ${releasedByView} claim(s) before expiry sweep`);
+	const { state } = loadTrackerState(ctx, issue, "expiry sweep");
 	const expired = findExpiredClaims(state, ctx.now, ctx.config.ttlDays);
 	if (expired.length === 0) {
 		info("no expired claims");
@@ -54002,10 +53993,7 @@ async function runExpire(ctx) {
 			ttlDays: String(ctx.config.ttlDays)
 		}));
 	}
-	const body = recomposeBody(issue.body, readFileSync(ctx.config.templatePath, "utf-8"), groupByLocale(state.files), state, {
-		ttl_days: String(ctx.config.ttlDays),
-		dashboard_url: ctx.config.dashboardUrl ?? ""
-	}, renderOptions(ctx.config, ctx.repo, state.files));
+	const body = recomposeTrackerBody(ctx, issue.body, state);
 	await ctx.api.updateIssueBody(issue.number, body);
 	info(`released ${expired.length} expired claim(s) on issue #${issue.number}`);
 	await writeStepSummary(`**⏰ Expiry sweep (issue #${issue.number})**
@@ -54023,10 +54011,7 @@ async function runLinkPr(ctx) {
 		info("no tracker issue found, nothing to link");
 		return;
 	}
-	const state = parseState(issue.body);
-	if (!state) throw new Error(`tracker issue #${issue.number} has no readable state block`);
-	const releasedByView = applyViewEdits(state, issue.body, ctx.now);
-	if (releasedByView > 0) info(`manual view edits released ${releasedByView} claim(s) before PR linking`);
+	const { state } = loadTrackerState(ctx, issue, "PR linking");
 	if (event.action === "closed") {
 		await handleClosed(ctx, issue.number, issue.body, state, pr);
 		return;
@@ -54045,10 +54030,7 @@ async function runLinkPr(ctx) {
 		info(`PR #${pr.number} does not match any active claim`);
 		return;
 	}
-	const updated = recomposeBody(issue.body, readFileSync(ctx.config.templatePath, "utf-8"), groupByLocale(state.files), state, {
-		ttl_days: String(ctx.config.ttlDays),
-		dashboard_url: ctx.config.dashboardUrl ?? ""
-	}, renderOptions(ctx.config, ctx.repo, state.files));
+	const updated = recomposeTrackerBody(ctx, issue.body, state);
 	await ctx.api.updateIssueBody(issue.number, updated);
 	info(`linked PR #${pr.number} to ${linked.length} claim(s), expiry frozen`);
 	await writeStepSummary(`**🔗 PR linked (PR #${pr.number})**
@@ -54070,10 +54052,7 @@ async function handleClosed(ctx, issueNumber, body, state, pr) {
 		info("no claims linked to this PR");
 		return;
 	}
-	const updated = recomposeBody(body, readFileSync(ctx.config.templatePath, "utf-8"), groupByLocale(state.files), state, {
-		ttl_days: String(ctx.config.ttlDays),
-		dashboard_url: ctx.config.dashboardUrl ?? ""
-	}, renderOptions(ctx.config, ctx.repo, state.files));
+	const updated = recomposeTrackerBody(ctx, body, state);
 	await ctx.api.updateIssueBody(issueNumber, updated);
 	await ctx.api.addComment(issueNumber, message(ctx.config, "pr_closed", {
 		user: pr.user.login,
@@ -54180,11 +54159,7 @@ async function runSync(ctx) {
 	}
 	const releasedByView = applyViewEdits(current, baseBody, ctx.now);
 	const { state, changed } = reconcile(current, desiredFiles, ctx.now);
-	const sections = groupByLocale(state.files);
-	const rendered = recomposeBody(baseBody, template, sections, state, {
-		ttl_days: String(ctx.config.ttlDays),
-		dashboard_url: ctx.config.dashboardUrl ?? ""
-	}, renderOptions(ctx.config, ctx.repo, state.files));
+	const rendered = recomposeTrackerBody(ctx, baseBody, state);
 	if (dryRun) {
 		await writeSyncSummary(ctx, state, rendered, {
 			preview: true,
@@ -54259,6 +54234,25 @@ async function writeStepSummary(content) {
 	} catch (error) {
 		warning(`step summary unavailable: ${String(error)}`);
 	}
+}
+/** 读取 issue body 里的状态块；损坏时抛出统一错误。返回状态与视图对账结果。 */
+function loadTrackerState(ctx, issue, phase) {
+	const body = issue.body ?? "";
+	const state = parseState(body);
+	if (!state) throw new Error(`tracker issue #${issue.number} has no readable state block`);
+	const releasedByView = applyViewEdits(state, body, ctx.now);
+	if (releasedByView > 0) info(`manual view edits released ${releasedByView} claim(s) before ${phase}`);
+	return {
+		state,
+		releasedByView
+	};
+}
+/** 用模板 + 配置 + 渲染参数重写 body（4 个模式的统一入口） */
+function recomposeTrackerBody(ctx, body, state) {
+	return recomposeBody(body, readFileSync(ctx.config.templatePath, "utf-8"), groupByLocale(state.files), state, {
+		ttl_days: String(ctx.config.ttlDays),
+		dashboard_url: ctx.config.dashboardUrl ?? ""
+	}, renderOptions(ctx.config, ctx.repo, state.files));
 }
 async function runMode(inputs) {
 	const repo = repoFromEnv();

@@ -2,11 +2,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import * as core from '@actions/core';
 import { applyViewEdits, type RawComment, rebuildClaimsFromComments } from '../claims.js';
 import { readLunariaStatus, toTrackedFiles } from '../lunaria.js';
-import { groupByLocale, type TrackedFile, type TrackerState } from '../model.js';
+import type { TrackedFile, TrackerState } from '../model.js';
 import { reconcile } from '../reconcile.js';
-import { applyPlaceholders, recomposeBody, renderBody, renderOptions } from '../render.js';
 import { parseState } from '../state.js';
-import { type ModeContext, writeStepSummary } from './index.js';
+import { type ModeContext, recomposeTrackerBody, writeStepSummary } from './index.js';
 
 export async function runSync(ctx: ModeContext): Promise<void> {
   const { statusJsonPath, dryRun } = ctx.inputs;
@@ -46,18 +45,7 @@ export async function runSync(ctx: ModeContext): Promise<void> {
 
   const releasedByView = applyViewEdits(current, baseBody, ctx.now);
   const { state, changed } = reconcile(current, desiredFiles, ctx.now);
-  const sections = groupByLocale(state.files);
-  const rendered = recomposeBody(
-    baseBody,
-    template,
-    sections,
-    state,
-    {
-      ttl_days: String(ctx.config.ttlDays),
-      dashboard_url: ctx.config.dashboardUrl ?? '',
-    },
-    renderOptions(ctx.config, ctx.repo, state.files),
-  );
+  const rendered = recomposeTrackerBody(ctx, baseBody, state);
 
   if (dryRun) {
     await writeSyncSummary(ctx, state, rendered, {

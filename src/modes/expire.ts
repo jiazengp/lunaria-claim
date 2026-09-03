@@ -1,11 +1,12 @@
-import { readFileSync } from 'node:fs';
 import * as core from '@actions/core';
-import { applyViewEdits, findExpiredClaims } from '../claims.js';
+import { findExpiredClaims } from '../claims.js';
 import { message } from '../messages.js';
-import { groupByLocale } from '../model.js';
-import { applyPlaceholders, recomposeBody, renderOptions } from '../render.js';
-import { parseState } from '../state.js';
-import { type ModeContext, writeStepSummary } from './index.js';
+import {
+  loadTrackerState,
+  type ModeContext,
+  recomposeTrackerBody,
+  writeStepSummary,
+} from './index.js';
 
 export async function runExpire(ctx: ModeContext): Promise<void> {
   const issue = await ctx.api.findTrackerIssue(ctx.config.issue.label);
@@ -13,14 +14,7 @@ export async function runExpire(ctx: ModeContext): Promise<void> {
     core.info('no tracker issue found, nothing to sweep');
     return;
   }
-  const state = parseState(issue.body);
-  if (!state) {
-    throw new Error(`tracker issue #${issue.number} has no readable state block`);
-  }
-  const releasedByView = applyViewEdits(state, issue.body, ctx.now);
-  if (releasedByView > 0) {
-    core.info(`manual view edits released ${releasedByView} claim(s) before expiry sweep`);
-  }
+  const { state } = loadTrackerState(ctx, issue, 'expiry sweep');
   const expired = findExpiredClaims(state, ctx.now, ctx.config.ttlDays);
   if (expired.length === 0) {
     core.info('no expired claims');
@@ -39,14 +33,7 @@ export async function runExpire(ctx: ModeContext): Promise<void> {
       }),
     );
   }
-  const body = recomposeBody(
-    issue.body,
-    readFileSync(ctx.config.templatePath, 'utf-8'),
-    groupByLocale(state.files),
-    state,
-    { ttl_days: String(ctx.config.ttlDays), dashboard_url: ctx.config.dashboardUrl ?? '' },
-    renderOptions(ctx.config, ctx.repo, state.files),
-  );
+  const body = recomposeTrackerBody(ctx, issue.body, state);
   await ctx.api.updateIssueBody(issue.number, body);
   core.info(`released ${expired.length} expired claim(s) on issue #${issue.number}`);
   await writeStepSummary(

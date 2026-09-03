@@ -1,12 +1,13 @@
-import { readFileSync } from 'node:fs';
 import * as core from '@actions/core';
-import { applyViewEdits } from '../claims.js';
 import { readEventPayload } from '../event.js';
 import { message } from '../messages.js';
-import { activeClaims, fileKey, groupByLocale, type TrackerState } from '../model.js';
-import { applyPlaceholders, recomposeBody, renderOptions } from '../render.js';
-import { parseState } from '../state.js';
-import { type ModeContext, writeStepSummary } from './index.js';
+import { activeClaims, fileKey, type TrackerState } from '../model.js';
+import {
+  loadTrackerState,
+  type ModeContext,
+  recomposeTrackerBody,
+  writeStepSummary,
+} from './index.js';
 
 interface PullRequestEvent {
   action: 'opened' | 'synchronize' | 'closed';
@@ -22,14 +23,7 @@ export async function runLinkPr(ctx: ModeContext): Promise<void> {
     core.info('no tracker issue found, nothing to link');
     return;
   }
-  const state = parseState(issue.body);
-  if (!state) {
-    throw new Error(`tracker issue #${issue.number} has no readable state block`);
-  }
-  const releasedByView = applyViewEdits(state, issue.body, ctx.now);
-  if (releasedByView > 0) {
-    core.info(`manual view edits released ${releasedByView} claim(s) before PR linking`);
-  }
+  const { state } = loadTrackerState(ctx, issue, 'PR linking');
 
   if (event.action === 'closed') {
     await handleClosed(ctx, issue.number, issue.body, state, pr);
@@ -57,14 +51,7 @@ export async function runLinkPr(ctx: ModeContext): Promise<void> {
     core.info(`PR #${pr.number} does not match any active claim`);
     return;
   }
-  const updated = recomposeBody(
-    issue.body,
-    readFileSync(ctx.config.templatePath, 'utf-8'),
-    groupByLocale(state.files),
-    state,
-    { ttl_days: String(ctx.config.ttlDays), dashboard_url: ctx.config.dashboardUrl ?? '' },
-    renderOptions(ctx.config, ctx.repo, state.files),
-  );
+  const updated = recomposeTrackerBody(ctx, issue.body, state);
   await ctx.api.updateIssueBody(issue.number, updated);
   core.info(`linked PR #${pr.number} to ${linked.length} claim(s), expiry frozen`);
   await writeStepSummary(
@@ -97,14 +84,7 @@ async function handleClosed(
     core.info('no claims linked to this PR');
     return;
   }
-  const updated = recomposeBody(
-    body,
-    readFileSync(ctx.config.templatePath, 'utf-8'),
-    groupByLocale(state.files),
-    state,
-    { ttl_days: String(ctx.config.ttlDays), dashboard_url: ctx.config.dashboardUrl ?? '' },
-    renderOptions(ctx.config, ctx.repo, state.files),
-  );
+  const updated = recomposeTrackerBody(ctx, body, state);
   await ctx.api.updateIssueBody(issueNumber, updated);
   await ctx.api.addComment(
     issueNumber,
