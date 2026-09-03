@@ -68,7 +68,20 @@ describe('loadConfig', () => {
     dir = mkdtempSync(join(tmpdir(), 'lunaria-claim-'));
     const path = join(dir, 'lunaria-claim.yml');
     writeFileSync(path, '', 'utf-8');
-    expect(loadConfig(path).ttlDays).toBe(15);
+    expect(loadConfig(path).config.ttlDays).toBe(15);
+  });
+
+  it('marks the config as template-explicit only when templatePath is spelled out (plan 007)', () => {
+    // 显式写 templatePath 键（fixture）→ 模板是布局真相源
+    const explicit = loadConfig('./tests/fixtures/modes-config.yml');
+    expect(explicit.templateExplicit).toBe(true);
+    // 空配置走默认值 → 维持原位覆盖
+    dir = mkdtempSync(join(tmpdir(), 'lunaria-claim-'));
+    const path = join(dir, 'lunaria-claim.yml');
+    writeFileSync(path, '{}', 'utf-8');
+    const implicit = loadConfig(path);
+    expect(implicit.templateExplicit).toBe(false);
+    expect(implicit.config.templatePath).toBe('.github/lunaria-claim.md');
   });
 
   it('rejects invalid yaml', () => {

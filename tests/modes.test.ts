@@ -3,13 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { type ActionInputs, loadConfig } from '../src/config.js';
+import { type ActionInputs, ClaimConfigSchema } from '../src/config.js';
 import type { GitHubApi, IssueRef, ReactionContent } from '../src/github.js';
 import type { RawComment, TrackerState } from '../src/model.js';
 import { runClaim } from '../src/modes/claim.js';
 import { runExpire } from '../src/modes/expire.js';
 import type { ModeContext } from '../src/modes/index.js';
 import { runSync } from '../src/modes/sync.js';
+import { runViewEdit } from '../src/modes/view-edit.js';
 import { parseState, serializeState } from '../src/state.js';
 
 const template = readFileSync(
@@ -79,6 +80,7 @@ function makeCtx(
   api: FakeApi,
   inputs: Partial<ActionInputs> = {},
   now = new Date('2026-09-02T00:00:00Z'),
+  templateExplicit = false,
 ): ModeContext {
   return {
     inputs: {
@@ -89,7 +91,8 @@ function makeCtx(
       dryRun: false,
       ...inputs,
     },
-    config: loadConfig('./tests/fixtures/modes-config.yml'),
+    config: ClaimConfigSchema.parse({ templatePath: './examples/lunaria-claim.template.md' }),
+    templateExplicit,
     api,
     repo: { owner: 'o', repo: 'r' },
     now,
@@ -262,6 +265,136 @@ describe('mode orchestration (fake GitHubApi)', () => {
       expect(state?.claims).toHaveLength(1);
       expect(state?.claims[0]).toMatchObject({ user: 'alice', path: 'index', locale: 'ja' });
     });
+
+    it('an edited claim comment releases its old claims first, then replays the new content (plan 007)', async () => {
+      const api = new FakeApi();
+      await runSync(makeCtx(api));
+      vi.stubEnv(
+        'GITHUB_EVENT_PATH',
+        writeEvent({
+          comment: {
+            id: 1,
+            body: '/claim index',
+            user: { login: 'alice' },
+            html_url: 'https://example.com/1',
+            created_at: '2026-09-02T00:00:00Z',
+          },
+          issue: { number: 1 },
+        }),
+      );
+      await runClaim(makeCtx(api, { mode: 'claim' }));
+      expect(api.updates).toBe(1);
+      // 同一条评论被编辑成另一个认领：download-client 跨 ja/ko 歧义 → 只释放不认领
+      vi.stubEnv(
+        'GITHUB_EVENT_PATH',
+        writeEvent({
+          action: 'edited',
+          comment: {
+            id: 1,
+            body: '/claim download-client',
+            user: { login: 'alice' },
+            html_url: 'https://example.com/1',
+            created_at: '2026-09-02T00:00:00Z',
+          },
+          issue: { number: 1 },
+        }),
+      );
+      await runClaim(makeCtx(api, { mode: 'claim' }));
+      expect(api.updates).toBe(2);
+      const state = parseState(api.issue?.body ?? '');
+      expect(state?.claims[0]).toMatchObject({
+        path: 'index',
+        locale: 'ja',
+        releaseReason: 'voluntary',
+      });
+      expect(state?.claims[0]?.releasedAt).toBe('2026-09-02T00:00:00.000Z');
+      // 新正文效果：歧义没有创建任何活跃认领，但回复了歧义提示
+      expect(state?.claims.filter((claim) => !claim.releasedAt)).toHaveLength(0);
+      expect(api.comments).toHaveLength(1);
+    });
+
+    it('editing a claim comment into plain text releases the claims without replay (plan 007)', async () => {
+      const api = new FakeApi();
+      await runSync(makeCtx(api));
+      vi.stubEnv(
+        'GITHUB_EVENT_PATH',
+        writeEvent({
+          comment: {
+            id: 1,
+            body: '/claim index',
+            user: { login: 'alice' },
+            html_url: 'https://example.com/1',
+            created_at: '2026-09-02T00:00:00Z',
+          },
+          issue: { number: 1 },
+        }),
+      );
+      await runClaim(makeCtx(api, { mode: 'claim' }));
+      expect(api.updates).toBe(1);
+      // 编辑成普通文字 = 只释放：不重放、不回复、不新增 reaction
+      vi.stubEnv(
+        'GITHUB_EVENT_PATH',
+        writeEvent({
+          action: 'edited',
+          comment: {
+            id: 1,
+            body: '谢谢大家，这是我的一点想法',
+            user: { login: 'alice' },
+            html_url: 'https://example.com/1',
+            created_at: '2026-09-02T00:00:00Z',
+          },
+          issue: { number: 1 },
+        }),
+      );
+      await runClaim(makeCtx(api, { mode: 'claim' }));
+      expect(api.updates).toBe(2);
+      expect(api.comments).toHaveLength(0);
+      expect(api.reactions).toEqual(['rocket']);
+      const claim = parseState(api.issue?.body ?? '')?.claims[0];
+      expect(claim?.releaseReason).toBe('voluntary');
+      expect(claim?.releasedAt).toBe('2026-09-02T00:00:00.000Z');
+    });
+
+    it('a deleted claim comment silently releases the claims without parsing or reactions (plan 007)', async () => {
+      const api = new FakeApi();
+      await runSync(makeCtx(api));
+      vi.stubEnv(
+        'GITHUB_EVENT_PATH',
+        writeEvent({
+          comment: {
+            id: 1,
+            body: '/claim index',
+            user: { login: 'alice' },
+            html_url: 'https://example.com/1',
+            created_at: '2026-09-02T00:00:00Z',
+          },
+          issue: { number: 1 },
+        }),
+      );
+      await runClaim(makeCtx(api, { mode: 'claim' }));
+      expect(api.updates).toBe(1);
+      vi.stubEnv(
+        'GITHUB_EVENT_PATH',
+        writeEvent({
+          action: 'deleted',
+          comment: {
+            id: 1,
+            body: '',
+            user: { login: 'alice' },
+            html_url: 'https://example.com/1',
+            created_at: '2026-09-02T00:00:00Z',
+          },
+          issue: { number: 1 },
+        }),
+      );
+      await runClaim(makeCtx(api, { mode: 'claim' }));
+      expect(api.updates).toBe(2);
+      expect(api.reactions).toEqual(['rocket']); // 无新增 reaction
+      expect(api.comments).toHaveLength(0);
+      const claim = parseState(api.issue?.body ?? '')?.claims[0];
+      expect(claim?.releaseReason).toBe('voluntary');
+      expect(claim?.releasedAt).toBe('2026-09-02T00:00:00.000Z');
+    });
   });
 
   describe('expire', () => {
@@ -394,6 +527,214 @@ describe('mode orchestration (fake GitHubApi)', () => {
       const claim = parseState(api.issue?.body ?? '')?.claims[0];
       expect(claim?.releasedAt).toBe('2026-09-02T00:00:00.000Z');
       expect(claim?.releaseReason).toBe('manual');
+    });
+  });
+
+  describe('view-edit', () => {
+    /** 注入活跃认领并勾选可见行（参照 expire 用例的手法） */
+    function injectClaim(api: FakeApi, claims: TrackerState['claims']): void {
+      const body = api.issue?.body;
+      const state = body ? parseState(body) : null;
+      expect(state).not.toBeNull();
+      if (!state) return;
+      api.issue!.body = body!.replace(
+        serializeState(state),
+        serializeState({ version: 1, files: state.files, claims }),
+      );
+    }
+
+    it('a bot edit is skipped entirely (self-loop guard)', async () => {
+      const api = new FakeApi();
+      await runSync(makeCtx(api));
+      vi.stubEnv(
+        'GITHUB_EVENT_PATH',
+        writeEvent({
+          action: 'edited',
+          sender: { login: 'lunaria-claim[bot]', type: 'Bot' },
+          issue: { number: 1, body: api.issue?.body ?? '' },
+          changes: { body: { from: api.issue?.body ?? '' } },
+        }),
+      );
+      await runViewEdit(makeCtx(api, { mode: 'view-edit' }));
+      expect(api.updates).toBe(0);
+      expect(api.reactions).toHaveLength(0);
+      expect(api.comments).toHaveLength(0);
+    });
+
+    it('an edit without changes.body is skipped (title/label edits)', async () => {
+      const api = new FakeApi();
+      await runSync(makeCtx(api));
+      vi.stubEnv(
+        'GITHUB_EVENT_PATH',
+        writeEvent({
+          action: 'edited',
+          sender: { login: 'alice', type: 'User' },
+          issue: { number: 1, body: api.issue?.body ?? '' },
+          changes: {},
+        }),
+      );
+      await runViewEdit(makeCtx(api, { mode: 'view-edit' }));
+      expect(api.updates).toBe(0);
+      expect(api.reactions).toHaveLength(0);
+      expect(api.comments).toHaveLength(0);
+    });
+
+    it('unchecking a claimed row releases it and puts a 👎 on the claim comment', async () => {
+      const api = new FakeApi();
+      await runSync(makeCtx(api));
+      injectClaim(api, [
+        {
+          path: 'download-client',
+          locale: 'ja',
+          user: 'bob',
+          claimedAt: '2026-08-29T00:00:00Z',
+          commentId: 42,
+          commentUrl: 'https://example.com/42',
+        },
+      ]);
+      const oldBody = (api.issue?.body ?? '').replace(
+        /- \[ \] \[`(src\/ja\/download-client\.md)`\]/,
+        '- [x] [`$1`]',
+      );
+      const newBody = oldBody.replace(
+        /- \[x\] \[`(src\/ja\/download-client\.md)`\]/,
+        '- [ ] [`$1`]',
+      );
+      vi.stubEnv(
+        'GITHUB_EVENT_PATH',
+        writeEvent({
+          action: 'edited',
+          sender: { login: 'admin', type: 'User' },
+          issue: { number: 1, body: newBody },
+          changes: { body: { from: oldBody } },
+        }),
+      );
+      await runViewEdit(makeCtx(api, { mode: 'view-edit' }));
+      expect(api.updates).toBe(1);
+      expect(api.reactions).toEqual(['-1']);
+      const claim = parseState(api.issue?.body ?? '')?.claims[0];
+      expect(claim?.releaseReason).toBe('manual');
+      expect(claim?.releasedAt).toBe('2026-09-02T00:00:00.000Z');
+    });
+
+    it('two files of the same claim comment unchecked at once → a single 👎 reaction', async () => {
+      const api = new FakeApi();
+      await runSync(makeCtx(api));
+      injectClaim(api, [
+        {
+          path: 'index',
+          locale: 'ja',
+          user: 'bob',
+          claimedAt: '2026-08-29T00:00:00Z',
+          commentId: 42,
+          commentUrl: 'https://example.com/42',
+        },
+        {
+          path: 'download-client',
+          locale: 'ja',
+          user: 'bob',
+          claimedAt: '2026-08-29T00:00:00Z',
+          commentId: 42,
+          commentUrl: 'https://example.com/42',
+        },
+      ]);
+      const oldBody = (api.issue?.body ?? '')
+        .replace(/- \[ \] \[`(src\/ja\/index\.md)`\]/, '- [x] [`$1`]')
+        .replace(/- \[ \] \[`(src\/ja\/download-client\.md)`\]/, '- [x] [`$1`]');
+      const newBody = oldBody
+        .replace(/- \[x\] \[`(src\/ja\/index\.md)`\]/, '- [ ] [`$1`]')
+        .replace(/- \[x\] \[`(src\/ja\/download-client\.md)`\]/, '- [ ] [`$1`]');
+      vi.stubEnv(
+        'GITHUB_EVENT_PATH',
+        writeEvent({
+          action: 'edited',
+          sender: { login: 'admin', type: 'User' },
+          issue: { number: 1, body: newBody },
+          changes: { body: { from: oldBody } },
+        }),
+      );
+      await runViewEdit(makeCtx(api, { mode: 'view-edit' }));
+      expect(api.updates).toBe(1);
+      expect(api.reactions).toEqual(['-1']);
+      const claims = parseState(api.issue?.body ?? '')?.claims ?? [];
+      expect(claims).toHaveLength(2);
+      expect(claims.every((claim) => claim.releaseReason === 'manual')).toBe(true);
+    });
+
+    it('checking an unclaimed row claims it for the editor (commentId=0 sentinel)', async () => {
+      const api = new FakeApi();
+      await runSync(makeCtx(api));
+      const oldBody = api.issue?.body ?? '';
+      const newBody = oldBody.replace(
+        /- \[ \] \[`(src\/ja\/download-client\.md)`\]/,
+        '- [x] [`$1`]',
+      );
+      vi.stubEnv(
+        'GITHUB_EVENT_PATH',
+        writeEvent({
+          action: 'edited',
+          sender: { login: 'alice', type: 'User' },
+          issue: { number: 1, body: newBody },
+          changes: { body: { from: oldBody } },
+        }),
+      );
+      await runViewEdit(makeCtx(api, { mode: 'view-edit' }));
+      expect(api.updates).toBe(1);
+      const claim = parseState(api.issue?.body ?? '')?.claims[0];
+      expect(claim).toMatchObject({
+        path: 'download-client',
+        locale: 'ja',
+        user: 'alice',
+        commentId: 0,
+        commentUrl: '',
+      });
+      expect(claim?.claimedAt).toBe('2026-09-02T00:00:00.000Z');
+    });
+
+    it('checking a directory row claims every unclaimed file in the subtree for the editor', async () => {
+      const api = new FakeApi();
+      await runSync(makeCtx(api));
+      const oldBody = api.issue?.body ?? '';
+      const newBody = oldBody.replace(/- \[ \] \[`src\/`\]/, '- [x] [`src/`]');
+      vi.stubEnv(
+        'GITHUB_EVENT_PATH',
+        writeEvent({
+          action: 'edited',
+          sender: { login: 'alice', type: 'User' },
+          issue: { number: 1, body: newBody },
+          changes: { body: { from: oldBody } },
+        }),
+      );
+      await runViewEdit(makeCtx(api, { mode: 'view-edit' }));
+      expect(api.updates).toBe(1);
+      const claims = parseState(api.issue?.body ?? '')?.claims ?? [];
+      // src/ 前缀展开：ja::index、ja::download-client、ko::download-client 全部入账
+      expect(claims).toHaveLength(3);
+      expect(claims.every((claim) => claim.user === 'alice' && claim.commentId === 0)).toBe(true);
+    });
+  });
+
+  describe('template policy', () => {
+    it('explicit templatePath rebuilds the body from the template on every sync (plan 007)', async () => {
+      const api = new FakeApi();
+      await runSync(makeCtx(api, {}, new Date('2026-09-02T00:00:00Z'), true));
+      expect(api.created).toBe(1);
+      // 标记区外手工加一行：模板是布局真相源 → 下次更新整体重建，手写不保留
+      if (api.issue?.body) api.issue.body = `${api.issue.body}\n\n手工插一句`;
+      await runSync(makeCtx(api, {}, new Date('2026-09-02T00:00:00Z'), true));
+      expect(api.updates).toBe(1);
+      expect(api.issue?.body ?? '').not.toContain('手工插一句');
+      expect(parseState(api.issue?.body ?? '')).not.toBeNull();
+      expect(api.issue?.body ?? '').toContain('- [ ]');
+    });
+
+    it('without explicit templatePath handwritten edits outside the markers survive (default)', async () => {
+      const api = new FakeApi();
+      await runSync(makeCtx(api));
+      if (api.issue?.body) api.issue.body = `${api.issue.body}\n\n手工插一句`;
+      await runSync(makeCtx(api));
+      expect(api.updates).toBe(0);
+      expect(api.issue?.body ?? '').toContain('手工插一句');
     });
   });
 });

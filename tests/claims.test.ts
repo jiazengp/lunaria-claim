@@ -7,6 +7,8 @@ import {
   findExpiredClaims,
   parseClaimComment,
   rebuildClaimsFromComments,
+  releaseClaimForViewEntry,
+  releaseClaimsByCommentId,
 } from '../src/claims.js';
 import { ClaimConfigSchema } from '../src/config.js';
 import type { TrackedFile, TrackerState } from '../src/model.js';
@@ -183,6 +185,110 @@ const makeClaim = () => ({
   claimedAt: '2026-09-01T00:00:00Z',
   commentId: 1,
   commentUrl: 'https://example.com/1',
+});
+
+describe('releaseClaimsByCommentId', () => {
+  const now = new Date('2026-09-03T00:00:00Z');
+  const claim = (id: number, path: string) => ({
+    path,
+    locale: 'ja',
+    user: `u${id}`,
+    claimedAt: '2026-09-01T00:00:00Z',
+    commentId: id,
+    commentUrl: `https://example.com/${id}`,
+  });
+
+  it('releases every active claim of the comment with the given reason, leaving others alone', () => {
+    const state: TrackerState = {
+      version: 1,
+      files: [],
+      claims: [claim(1, 'a.md'), claim(1, 'b.md'), claim(2, 'c.md')],
+    };
+    const released = releaseClaimsByCommentId(state, 1, now, 'voluntary');
+    expect(released.map((item) => item.path)).toEqual(['a.md', 'b.md']);
+    expect(state.claims[0]).toMatchObject({
+      releasedAt: '2026-09-03T00:00:00.000Z',
+      releaseReason: 'voluntary',
+    });
+    expect(state.claims[1]).toMatchObject({ releaseReason: 'voluntary' });
+    expect(state.claims[2]?.releasedAt).toBeUndefined();
+  });
+
+  it('returns empty for already-released or foreign claims', () => {
+    const state: TrackerState = {
+      version: 1,
+      files: [],
+      claims: [{ ...claim(1, 'a.md'), releasedAt: '2026-09-02T00:00:00Z' }],
+    };
+    expect(releaseClaimsByCommentId(state, 1, now, 'voluntary')).toEqual([]);
+    expect(releaseClaimsByCommentId(state, 99, now, 'voluntary')).toEqual([]);
+  });
+});
+
+describe('releaseClaimForViewEntry', () => {
+  const now = new Date('2026-09-03T00:00:00Z');
+
+  it('releases the claim matching a file row exactly (ja::src/manual/a.md)', () => {
+    const state: TrackerState = { version: 1, files: [], claims: [makeClaim()] };
+    const released = releaseClaimForViewEntry(
+      state,
+      { locale: 'ja', sharedPath: 'src/manual/a.md', checked: false },
+      now,
+    );
+    expect(released).toHaveLength(1);
+    expect(state.claims[0]).toMatchObject({
+      releasedAt: '2026-09-03T00:00:00.000Z',
+      releaseReason: 'manual',
+    });
+  });
+
+  it('does nothing for a checked row', () => {
+    const state: TrackerState = { version: 1, files: [], claims: [makeClaim()] };
+    expect(
+      releaseClaimForViewEntry(
+        state,
+        { locale: 'ja', sharedPath: 'src/manual/a.md', checked: true },
+        now,
+      ),
+    ).toEqual([]);
+    expect(state.claims[0]?.releasedAt).toBeUndefined();
+  });
+
+  it('releases the whole subtree for an unchecked directory row only when fully claimed', () => {
+    const files = [
+      { sharedPath: 'src/manual/a.md', locale: 'ja', status: 'missing' as const },
+      { sharedPath: 'src/manual/b.md', locale: 'ja', status: 'missing' as const },
+    ];
+    // 部分认领子树：Fix D 守卫 → 目录行不是有效释放信号
+    const partial: TrackerState = {
+      version: 1,
+      files,
+      claims: [{ ...makeClaim(), path: 'src/manual/a.md' }],
+    };
+    expect(
+      releaseClaimForViewEntry(
+        partial,
+        { locale: 'ja', sharedPath: 'src/manual/', checked: false },
+        now,
+      ),
+    ).toEqual([]);
+    expect(partial.claims[0]?.releasedAt).toBeUndefined();
+    // 全认领子树：取消勾选目录行 = 释放全部
+    const full: TrackerState = {
+      version: 1,
+      files,
+      claims: [
+        { ...makeClaim(), path: 'src/manual/a.md' },
+        { ...makeClaim(), path: 'src/manual/b.md' },
+      ],
+    };
+    const released = releaseClaimForViewEntry(
+      full,
+      { locale: 'ja', sharedPath: 'src/manual/', checked: false },
+      now,
+    );
+    expect(released.map((claim) => claim.path)).toEqual(['src/manual/a.md', 'src/manual/b.md']);
+  });
 });
 
 describe('applyViewEdits', () => {
