@@ -182,6 +182,10 @@ src/index.md 我来认领           # 宽松模式：清单中的完整路径 + 
 
 `schedule` 本身会有延迟，且仓库 60 天无任何活动时 GitHub 会暂停定时触发。低频仓库偶尔手动运行一次 `claim-bot` workflow 兜底即可；超期判定基于认领时间戳，与触发时间无关。
 
+**本地 `git fetch --tags` 后 v1 还是旧版？**
+
+`v1` 是浮动 tag（版本更新会前移）。刷新本地缓存：`git fetch --tags --force`，或直接看 [Release 页](https://github.com/jiazengp/lunaria-claim/releases) 标注的 commit sha。
+
 **私有仓库**
 
 需要 PAT：checkout、`lunaria build` 两步，以及 action 的 `token` 都传 `${{ secrets.PAT }}`。
