@@ -184,6 +184,10 @@ src/index.md 我来认领           # 宽松模式：清单中的完整路径 + 
 
 `schedule` 本身会有延迟，且仓库 60 天无任何活动时 GitHub 会暂停定时触发。低频仓库偶尔手动运行一次 `claim-bot` workflow 兜底即可；超期判定基于认领时间戳，与触发时间无关。
 
+**报 body is missing {{files}} or a {{files_<lang>}} placeholder？**
+
+模板里没有任何可展开的文件占位符。必须至少有一个 `{{files}}` 或 `{{files_<lang>}}`，并且**不能只写在 HTML 注释里**（注释里的占位符是示例，不会被展开）。常见原因：照抄了模板注释区的分区示例后删掉了 `{{files}}` 区块。改模板后先跑一次 sync 的 `dry-run` 验证再正式运行。
+
 **本地 `git fetch --tags` 后 v1 还是旧版？**
 
 `v1` 是浮动 tag（版本更新会前移）。刷新本地缓存：`git fetch --tags --force`，或直接看 [Release 页](https://github.com/jiazengp/lunaria-claim/releases) 标注的 commit sha。

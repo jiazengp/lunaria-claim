@@ -105,7 +105,10 @@ export function renderBody(
     throw new Error('body is missing the LUNARIA-CLAIM:STATE markers');
   }
   if (!hasOutsideComments(body, FILES_PLACEHOLDER_RE)) {
-    throw new Error('body is missing {{files}} or a {{files_<lang>}} placeholder');
+    throw new Error(
+      'body is missing {{files}} or a {{files_<lang>}} placeholder ' +
+        '(placeholders inside HTML comments are examples, never expanded)',
+    );
   }
   const claimsByFile = new Map(
     activeClaims(state).map((claim) => [fileKey(claim.locale, claim.path), claim]),
