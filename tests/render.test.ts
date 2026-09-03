@@ -170,6 +170,19 @@ describe('parseViewCheckboxes edges', () => {
       { locale: 'ja', sharedPath: 'src/root.md', checked: false },
     ]);
   });
+
+  it('parses link-wrapped rows (repoUrl shape) for files and directories', () => {
+    const body = `### 🌐 ja
+
+- [ ] [\`src/ja/a.md\`](https://github.com/o/r/new/main?filename=src/ja/a.md)
+- [x] [\`src/ja/b.md\`](https://github.com/o/r/edit/main/src/ja/b.md)
+- [ ] [\`manual/\`](https://github.com/o/r/tree/main/manual)`;
+    expect(parseViewCheckboxes(body)).toEqual([
+      { locale: 'ja', sharedPath: 'src/ja/a.md', checked: false },
+      { locale: 'ja', sharedPath: 'src/ja/b.md', checked: true },
+      { locale: 'ja', sharedPath: 'manual/', checked: false },
+    ]);
+  });
 });
 
 describe('renderBody links', () => {

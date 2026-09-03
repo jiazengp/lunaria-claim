@@ -209,6 +209,17 @@ describe('applyViewEdits', () => {
     expect(applyViewEdits(state, body, now)).toBe(1);
     expect(state.claims[0]?.releaseReason).toBe('manual');
   });
+
+  it('releases a claim whose linked row was unchecked (production shape)', () => {
+    const state: TrackerState = {
+      version: 1,
+      files: [],
+      claims: [{ ...makeClaim(), path: 'src/ja/a.md' }],
+    };
+    const body = '### 🌐 ja\n\n- [ ] [`src/ja/a.md`](https://github.com/o/r/edit/main/src/ja/a.md)';
+    expect(applyViewEdits(state, body, now)).toBe(1);
+    expect(state.claims[0]?.releaseReason).toBe('manual');
+  });
 });
 
 describe('parseClaimComment boundaries', () => {
@@ -469,7 +480,10 @@ describe('applyViewEdits directory line', () => {
   it('releases every claim under an unchecked directory', () => {
     const state: TrackerState = {
       version: 1,
-      files: [],
+      files: [
+        { sharedPath: 'src/manual/a.md', locale: 'ja', status: 'missing' },
+        { sharedPath: 'src/manual/b.md', locale: 'ja', status: 'missing' },
+      ],
       claims: [
         { ...makeClaim(), path: 'src/manual/a.md' },
         { ...makeClaim(), path: 'src/manual/b.md' },
@@ -481,6 +495,21 @@ describe('applyViewEdits directory line', () => {
     expect(applyViewEdits(state, body, new Date('2026-09-02T00:00:00Z'))).toBe(2);
     expect(state.claims.filter((claim) => claim.releaseReason === 'manual')).toHaveLength(2);
     expect(state.claims[2]?.releaseReason).toBeUndefined();
+  });
+
+  it('an unchecked dir row is ignored while the subtree is only partially claimed', () => {
+    const state: TrackerState = {
+      version: 1,
+      files: [
+        { sharedPath: 'src/manual/a.md', locale: 'ja', status: 'missing' },
+        { sharedPath: 'src/manual/b.md', locale: 'ja', status: 'missing' },
+      ],
+      claims: [{ ...makeClaim(), path: 'src/manual/a.md' }],
+    };
+    const body =
+      '### 🌐 ja\n\n- [ ] `src/manual/`\n- [x] `src/manual/a.md`\n- [ ] `src/manual/b.md`';
+    expect(applyViewEdits(state, body, new Date('2026-09-02T00:00:00Z'))).toBe(0);
+    expect(state.claims[0]?.releaseReason).toBeUndefined();
   });
 });
 

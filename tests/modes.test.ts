@@ -291,6 +291,15 @@ describe('mode orchestration (fake GitHubApi)', () => {
           serializeState(expiredState),
         );
       }
+      // 注入认领后把可见文件行同步为已勾选，让测试测的是"过期释放"而非"视图释放"；
+      // 目录行保持未勾选（子树未全认领，Fix D 下被正确忽略）
+      if (api.issue?.body) {
+        api.issue.body = api.issue.body.replace(
+          /- \[ \] \[`(src\/ja\/download-client\.md)`\]/,
+          '- [x] [`$1`]',
+        );
+      }
+      expect(api.issue?.body ?? '').toContain('- [x] [`src/ja/download-client.md`]');
       await runExpire(makeCtx(api, { mode: 'expire' }, new Date('2026-10-01T00:00:00Z')));
       expect(api.updates).toBe(1);
       expect(api.comments).toHaveLength(1);
@@ -323,11 +332,68 @@ describe('mode orchestration (fake GitHubApi)', () => {
       if (api.issue?.body && state) {
         api.issue.body = api.issue.body.replace(serializeState(state), serializeState(freshState));
       }
+      // 同上：可见文件行与注入的认领保持一致（已勾选）
+      if (api.issue?.body) {
+        api.issue.body = api.issue.body.replace(
+          /- \[ \] \[`(src\/ja\/download-client\.md)`\]/,
+          '- [x] [`$1`]',
+        );
+      }
+      expect(api.issue?.body ?? '').toContain('- [x] [`src/ja/download-client.md`]');
       await runExpire(makeCtx(api, { mode: 'expire' }));
       expect(api.updates).toBe(0);
       expect(api.comments).toHaveLength(0);
       // 认领原样保留（未被释放）
       expect(parseState(api.issue?.body ?? '')?.claims[0]?.releasedAt).toBeUndefined();
+    });
+
+    it('manual uncheck in a linked body releases the claim (regression for plan 005)', async () => {
+      const api = new FakeApi();
+      await runSync(makeCtx(api));
+      const state = parseState(api.issue?.body ?? '');
+      expect(state).not.toBeNull();
+      // 4 天前（2026-08-29）的活跃认领，未到期（默认 ttlDays=15）
+      const claimedState: TrackerState = {
+        version: 1,
+        files: state?.files ?? [],
+        claims: [
+          {
+            path: 'download-client',
+            locale: 'ja',
+            user: 'bob',
+            claimedAt: '2026-08-29T00:00:00Z',
+            commentId: 44,
+            commentUrl: 'https://example.com/44',
+          },
+        ],
+      };
+      if (api.issue?.body && state) {
+        api.issue.body = api.issue.body.replace(
+          serializeState(state),
+          serializeState(claimedState),
+        );
+      }
+      // 先让可见文件行与注入的认领对齐（已勾选，目录行保持未勾选），再模拟管理员手工取消勾选
+      if (api.issue?.body) {
+        api.issue.body = api.issue.body.replace(
+          /- \[ \] \[`(src\/ja\/download-client\.md)`\]/,
+          '- [x] [`$1`]',
+        );
+      }
+      expect(api.issue?.body ?? '').toContain('- [x] [`src/ja/download-client.md`]');
+      if (api.issue?.body) {
+        api.issue.body = api.issue.body.replace(
+          /- \[x\] \[`(src\/ja\/download-client\.md)`\]/,
+          '- [ ] [`$1`]',
+        );
+      }
+      await runExpire(makeCtx(api, { mode: 'expire' }));
+      // 视图释放触发 body 重写；认领未到期，不发提醒评论
+      expect(api.updates).toBe(1);
+      expect(api.comments).toHaveLength(0);
+      const claim = parseState(api.issue?.body ?? '')?.claims[0];
+      expect(claim?.releasedAt).toBe('2026-09-02T00:00:00.000Z');
+      expect(claim?.releaseReason).toBe('manual');
     });
   });
 });
