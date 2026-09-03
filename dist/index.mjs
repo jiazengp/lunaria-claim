@@ -28170,7 +28170,8 @@ const ModeSchema = _enum([
 	"sync",
 	"claim",
 	"expire",
-	"link-pr"
+	"link-pr",
+	"view-edit"
 ]);
 const FileListStyleSchema = _enum(["tree", "flat"]);
 const ClaimConfigSchema = object({
@@ -28218,7 +28219,11 @@ function parseInputs(raw) {
 }
 function loadConfig(path) {
 	const raw = (0, import_dist.parse)(readFileSync(path, "utf-8"));
-	return ClaimConfigSchema.parse(raw ?? {});
+	const record = raw !== null && typeof raw === "object";
+	return {
+		config: ClaimConfigSchema.parse(raw ?? {}),
+		templateExplicit: record && "templatePath" in raw
+	};
 }
 function repoFromEnv() {
 	const full = process.env.GITHUB_REPOSITORY;
@@ -28373,12 +28378,20 @@ function renderBody(body, sections, state, options) {
 		return byLocale.get(locale) ?? match;
 	}).replace(STATE_REGION_RE, () => serializeState(state));
 }
+/** 模板含按语言分区占位符（{{files_<lang>}}）时，布局以模板为准整体重建 */
+function perLocaleTemplate(template) {
+	return PER_LOCALE_PLACEHOLDER_RE.test(template);
+}
+/** 以模板为唯一真相整体重建正文（自定义模板与多占位符模板共用） */
+function rebuildFromTemplate(template, sections, state, vars, options) {
+	return applyPlaceholders(renderBody(template, sections, state, options), vars);
+}
 /**
 * 更新已有 issue 的统一入口：优先在原正文上原位覆盖（保留用户手写内容）；
 * 正文已不可用（无占位符也无标记区，如多占位符模板）时回退到按模板整体重建。
 */
 function recomposeBody(body, template, sections, state, vars, options) {
-	if (PER_LOCALE_PLACEHOLDER_RE.test(template)) return applyPlaceholders(renderBody(template, sections, state, options), vars);
+	if (perLocaleTemplate(template)) return rebuildFromTemplate(template, sections, state, vars, options);
 	try {
 		return applyPlaceholders(renderBody(body, sections, state, options), vars);
 	} catch {
@@ -28636,6 +28649,58 @@ function findExpiredClaims(state, now, ttlDays) {
 	return activeClaims(state).filter((claim) => !claim.prUrl && now.getTime() - Date.parse(claim.claimedAt) > ttlMs);
 }
 /**
+* 按认领评论 id 释放其全部活跃认领（评论编辑/删除的账本语义）；返回被释放的认领。
+* 已经被释放的认领（releasedAt 已置）不在此列，重复调用自然返回空。
+*/
+function releaseClaimsByCommentId(state, commentId, now, reason) {
+	const released = [];
+	for (const claim of activeClaims(state)) {
+		if (claim.commentId !== commentId) continue;
+		claim.releasedAt = now.toISOString();
+		claim.releaseReason = reason;
+		released.push(claim);
+	}
+	return released;
+}
+/** 判断用：目录行算子树时，前缀也接受展示路径（localizationPath）形态 */
+function claimMatchesPrefix(claim, state, prefix) {
+	const file = state.files.find((candidate) => candidate.locale === claim.locale && candidate.sharedPath === claim.path);
+	return claim.path.startsWith(prefix) || file?.localizationPath?.startsWith(prefix) === true;
+}
+/**
+* 视图条目（文件行或目录行）对应的活跃认领：
+* - 文件行：locale+路径精确匹配（sharedPath 或 localizationPath 形态），无 locale 时按路径兜底；
+* - 目录行：子树（sharedPath/展示路径前缀）对应的认领，子树全部被认领才算数
+*   （Fix D 守卫：部分认领的子树目录行本就没勾选，不该被当成释放信号）。
+*/
+function viewEntryClaims(state, entry) {
+	const active = activeClaims(state);
+	const prefix = entry.sharedPath;
+	if (prefix.endsWith("/")) {
+		const subtree = state.files.filter((candidate) => (entry.locale ? candidate.locale === entry.locale : true) && (candidate.sharedPath.startsWith(prefix) || candidate.localizationPath?.startsWith(prefix) === true));
+		if (!(subtree.length === 0 || subtree.every((file) => active.some((claim) => fileKey(claim.locale, claim.path) === fileKey(file.locale, file.sharedPath))))) return [];
+		return active.filter((claim) => (entry.locale ? claim.locale === entry.locale : true) && claimMatchesPrefix(claim, state, prefix));
+	}
+	return active.filter((claim) => {
+		const file = state.files.find((candidate) => candidate.locale === claim.locale && candidate.sharedPath === claim.path);
+		const keys = [fileKey(claim.locale, claim.path)];
+		if (file?.localizationPath) keys.push(fileKey(claim.locale, file.localizationPath));
+		if (entry.locale) return keys.includes(fileKey(entry.locale, entry.sharedPath));
+		return claim.path === entry.sharedPath || file?.localizationPath === entry.sharedPath;
+	});
+}
+/** 按视图条目释放认领（勾选行不动作；目录行带全认领守卫）；返回被释放的认领 */
+function releaseClaimForViewEntry(state, entry, now) {
+	if (entry.checked) return [];
+	const released = [];
+	for (const claim of viewEntryClaims(state, entry)) {
+		claim.releasedAt = now.toISOString();
+		claim.releaseReason = "manual";
+		released.push(claim);
+	}
+	return released;
+}
+/**
 * 管理员手动编辑兼容：把可见清单里的"取消勾选 / 整行删除"反写回状态，按手动释放处理。
 * 读 body 时如果连一个语言区块都没解析出来，放弃本次对账（避免误释放）。
 */
@@ -28644,43 +28709,28 @@ function applyViewEdits(state, body, now) {
 	if (view.length === 0) return 0;
 	const exact = /* @__PURE__ */ new Map();
 	const loose = /* @__PURE__ */ new Map();
-	for (const entry of view) if (entry.locale) exact.set(fileKey(entry.locale, entry.sharedPath), entry);
-	else loose.set(entry.sharedPath, entry);
-	const findEntry = (claim) => {
-		const keys = [fileKey(claim.locale, claim.path)];
-		const file = state.files.find((candidate) => candidate.locale === claim.locale && candidate.sharedPath === claim.path);
-		if (file?.localizationPath) keys.push(fileKey(claim.locale, file.localizationPath));
-		for (const key of keys) {
-			const hit = exact.get(key);
-			if (hit) return hit;
-		}
-		const looseHit = loose.get(claim.path);
-		if (looseHit) return looseHit;
-		return file?.localizationPath ? loose.get(file.localizationPath) : void 0;
-	};
-	let released = 0;
+	for (const entry of view) {
+		if (entry.sharedPath.endsWith("/")) continue;
+		if (entry.locale) exact.set(fileKey(entry.locale, entry.sharedPath), entry);
+		else loose.set(entry.sharedPath, entry);
+	}
+	const kept = /* @__PURE__ */ new Set();
+	for (const entry of [...exact.values(), ...loose.values()]) {
+		if (!entry.checked) continue;
+		for (const claim of viewEntryClaims(state, entry)) kept.add(claim);
+	}
+	const released = /* @__PURE__ */ new Set();
 	for (const claim of activeClaims(state)) {
-		if (findEntry(claim)?.checked) continue;
+		if (kept.has(claim)) continue;
 		claim.releasedAt = now.toISOString();
 		claim.releaseReason = "manual";
-		released++;
+		released.add(claim);
 	}
 	for (const entry of view) {
-		if (!entry.sharedPath.endsWith("/") || entry.checked) continue;
-		const prefix = entry.sharedPath;
-		const subtree = state.files.filter((candidate) => (entry.locale ? candidate.locale === entry.locale : true) && (candidate.sharedPath.startsWith(prefix) || candidate.localizationPath?.startsWith(prefix) === true));
-		if (!(subtree.length === 0 || subtree.every((file) => activeClaims(state).some((claim) => fileKey(claim.locale, claim.path) === fileKey(file.locale, file.sharedPath))))) continue;
-		for (const claim of activeClaims(state)) {
-			if (!(entry.locale ? claim.locale === entry.locale : true)) continue;
-			const displayPrefixOk = state.files.find((candidate) => candidate.locale === claim.locale && candidate.sharedPath === claim.path)?.localizationPath?.startsWith(prefix) === true;
-			if (claim.path.startsWith(prefix) || displayPrefixOk) {
-				claim.releasedAt = now.toISOString();
-				claim.releaseReason = "manual";
-				released++;
-			}
-		}
+		if (!entry.sharedPath.endsWith("/")) continue;
+		for (const claim of releaseClaimForViewEntry(state, entry, now)) released.add(claim);
 	}
-	return released;
+	return released.size;
 }
 /**
 * 状态块损坏时的尽力自愈：按时间顺序回放评论里的 /claim、/release 命令，
@@ -53850,7 +53900,7 @@ function createGitHubApi(token, repo) {
 				comment_id: commentId,
 				content
 			}).catch((error) => {
-				if (typeof error === "object" && error !== null && "status" in error && error.status === 422) return;
+				if (typeof error === "object" && error !== null && "status" in error && (error.status === 422 || error.status === 404)) return;
 				throw error;
 			});
 		},
@@ -53894,12 +53944,39 @@ async function runClaim(ctx) {
 		return;
 	}
 	const { state } = loadTrackerState(ctx, issue, "claim processing");
+	let releasedByEdit = 0;
+	if (event.action === "edited") {
+		releasedByEdit = releaseClaimsByCommentId(state, event.comment.id, ctx.now, "voluntary").length;
+		info(`comment #${event.comment.id} edited: released ${releasedByEdit} previous claim(s), replaying new content`);
+	} else if (event.action === "deleted") {
+		const released = releaseClaimsByCommentId(state, event.comment.id, ctx.now, "voluntary");
+		if (released.length === 0) {
+			info("deleted comment had no active claims, nothing to do");
+			return;
+		}
+		const updated = recomposeTrackerBody(ctx, issue.body, state);
+		await ctx.api.updateIssueBody(issue.number, updated);
+		info(`released ${released.length} claim(s) after comment #${event.comment.id} was deleted`);
+		await writeStepSummary(`**🗑️ Claim comment deleted (issue #${event.issue.number})**
+      
+- Released: ${released.length}`);
+		return;
+	}
 	const body = event.comment.body;
 	const commands = parseClaimComment(body);
 	const claimTokens = commands.filter((c) => c.kind === "claim").flatMap((c) => c.paths);
 	const releaseTokens = commands.filter((c) => c.kind === "release").flatMap((c) => c.paths);
 	const lenientTokens = claimTokens.length === 0 && !ctx.config.strictClaimSyntax && hasIntent(body, ctx.config.lenientKeywords) ? lenientTargets(body, state) : [];
 	if (claimTokens.length === 0 && releaseTokens.length === 0 && lenientTokens.length === 0) {
+		if (releasedByEdit > 0) {
+			const updated = recomposeTrackerBody(ctx, issue.body, state);
+			await ctx.api.updateIssueBody(issue.number, updated);
+			info("no claim/release intent in the edited content; persisted the releases only");
+			await writeStepSummary(`**✏️ Claim comment edited (issue #${event.issue.number})**
+        
+- Released: ${releasedByEdit} previous claim(s) (new content has no claim intent)`);
+			return;
+		}
 		info("no claim/release intent found, treating as a normal comment");
 		return;
 	}
@@ -53928,7 +54005,7 @@ async function runClaim(ctx) {
 			}
 		}
 	}
-	const changed = before !== JSON.stringify(state.claims);
+	const changed = before !== JSON.stringify(state.claims) || releasedByEdit > 0;
 	if (changed) {
 		const updated = recomposeTrackerBody(ctx, issue.body, state);
 		await ctx.api.updateIssueBody(issue.number, updated);
@@ -54174,9 +54251,11 @@ async function runSync(ctx) {
 		return;
 	}
 	if (!changed && releasedByView === 0 && rebuiltClaims === 0) {
-		info(`tracker issue #${issue.number} is up to date`);
-		setOutput("issue-url", `https://github.com/${ctx.repo.owner}/${ctx.repo.repo}/issues/${issue.number}`);
-		return;
+		if (!ctx.templateExplicit || rendered === baseBody) {
+			info(`tracker issue #${issue.number} is up to date`);
+			setOutput("issue-url", `https://github.com/${ctx.repo.owner}/${ctx.repo.repo}/issues/${issue.number}`);
+			return;
+		}
 	}
 	await ctx.api.updateIssueBody(issue.number, rendered);
 	setOutput("issue-url", `https://github.com/${ctx.repo.owner}/${ctx.repo.repo}/issues/${issue.number}`);
@@ -54215,6 +54294,97 @@ async function writeSyncSummary(state, rendered, info) {
 	await writeStepSummary(body);
 }
 //#endregion
+//#region src/modes/view-edit.ts
+/**
+* 正文编辑对账（issues: [edited] 触发）：手工勾选/取消勾选认领清单。
+* - 取消勾选（或整行删除）= 手动释放，并在原认领评论上打 👎 通知；
+* - 勾选未认领行 = 以编辑者为认领人入账（commentId=0 哨兵，正文勾选认领无法从评论自愈回放）。
+* 只读事件 payload 的 issue.body，不重新 fetch；与写回之间的竞态由 concurrency 串行
+* + 下一次 sync 全量对账兜底（与 claim mode 一致）。
+*/
+async function runViewEdit(ctx) {
+	const event = readEventPayload();
+	if (event.sender.type === "Bot") {
+		info("bot edited the issue, skipping (avoids a self-loop on our own writeback)");
+		return;
+	}
+	const from = event.changes?.body?.from;
+	if (!from) {
+		info("issue edit did not touch the body, skipping");
+		return;
+	}
+	const issue = await ctx.api.findTrackerIssue(ctx.config.issue.label);
+	if (!issue || issue.number !== event.issue.number) {
+		info("edited issue is not the tracker issue, skipping");
+		return;
+	}
+	const state = parseState(event.issue.body);
+	if (!state) throw new Error(`tracker issue #${event.issue.number} has no readable state block`);
+	const keyOf = (entry) => entry.locale ? fileKey(entry.locale, entry.sharedPath) : entry.sharedPath;
+	const merged = /* @__PURE__ */ new Map();
+	for (const entry of parseViewCheckboxes(from)) {
+		const key = keyOf(entry);
+		const current = merged.get(key) ?? {
+			oldEntry: entry,
+			newEntry: entry,
+			wasChecked: false,
+			isChecked: false
+		};
+		current.oldEntry = entry;
+		current.wasChecked = current.wasChecked || entry.checked;
+		merged.set(key, current);
+	}
+	for (const entry of parseViewCheckboxes(event.issue.body)) {
+		const key = keyOf(entry);
+		const current = merged.get(key) ?? {
+			oldEntry: entry,
+			newEntry: entry,
+			wasChecked: false,
+			isChecked: false
+		};
+		current.newEntry = entry;
+		current.isChecked = current.isChecked || entry.checked;
+		merged.set(key, current);
+	}
+	const uncheckedNow = [...merged.values()].filter((view) => view.wasChecked && !view.isChecked).map((view) => ({
+		...view.oldEntry,
+		checked: false
+	}));
+	const checkedNow = [...merged.values()].filter((view) => view.isChecked && !view.wasChecked).map((view) => view.newEntry);
+	if (uncheckedNow.length === 0 && checkedNow.length === 0) {
+		info("no view checkbox changes, skipping");
+		return;
+	}
+	const before = JSON.stringify(state.claims);
+	let released = 0;
+	const reactedIds = /* @__PURE__ */ new Set();
+	for (const entry of uncheckedNow) for (const claim of releaseClaimForViewEntry(state, entry, ctx.now)) {
+		released++;
+		if (claim.commentId !== 0) reactedIds.add(claim.commentId);
+	}
+	let created = 0;
+	for (const entry of checkedNow) {
+		const { entries, failures } = resolveTargets([entry.sharedPath], state);
+		for (const failure of failures) info(`view-edit claim target not resolvable: ${failure.token}`);
+		const application = applyClaimEntries(state, entries, event.sender.login, ctx.now.toISOString(), 0, "");
+		created += application.created;
+	}
+	if (before === JSON.stringify(state.claims)) {
+		info("view edit changed nothing, skipping writeback");
+		return;
+	}
+	const updated = recomposeTrackerBody(ctx, event.issue.body, state);
+	await ctx.api.updateIssueBody(issue.number, updated);
+	for (const commentId of reactedIds) await ctx.api.reactToComment(commentId, "-1");
+	info(`view edit reconciled: released ${released} claim(s) (${reactedIds.size} 👎 reaction(s)), claimed ${created} file(s) as ${event.sender.login}`);
+	await writeStepSummary([
+		`**✏️ View edit reconciliation (issue #${event.issue.number})**`,
+		"",
+		released > 0 ? `- Released: ${released}${reactedIds.size > 0 ? " (with 👎 on the claim comments)" : ""}` : null,
+		created > 0 ? `- Claimed: ${created} (as @${event.sender.login})` : null
+	].filter((line) => line !== null).join("\n"));
+}
+//#endregion
 //#region src/modes/index.ts
 /** 写入 GitHub Step Summary；环境不支持时降级为日志，不失败 */
 async function writeStepSummary(content) {
@@ -54238,16 +54408,23 @@ function loadTrackerState(ctx, issue, phase) {
 }
 /** 用模板 + 配置 + 渲染参数重写 body（4 个模式的统一入口） */
 function recomposeTrackerBody(ctx, body, state) {
-	return recomposeBody(body, readFileSync(ctx.config.templatePath, "utf-8"), groupByLocale(state.files), state, {
+	const template = readFileSync(ctx.config.templatePath, "utf-8");
+	const sections = groupByLocale(state.files);
+	const vars = {
 		ttl_days: String(ctx.config.ttlDays),
 		dashboard_url: ctx.config.dashboardUrl ?? ""
-	}, renderOptions(ctx.config, ctx.repo, state.files));
+	};
+	const options = renderOptions(ctx.config, ctx.repo, state.files);
+	if (ctx.templateExplicit) return rebuildFromTemplate(template, sections, state, vars, options);
+	return recomposeBody(body, template, sections, state, vars, options);
 }
 async function runMode(inputs) {
 	const repo = repoFromEnv();
+	const loaded = loadConfig(inputs.configPath);
 	const ctx = {
 		inputs,
-		config: loadConfig(inputs.configPath),
+		config: loaded.config,
+		templateExplicit: loaded.templateExplicit,
 		api: createGitHubApi(inputs.token, repo),
 		repo,
 		now: /* @__PURE__ */ new Date()
@@ -54257,6 +54434,7 @@ async function runMode(inputs) {
 		case "claim": return runClaim(ctx);
 		case "expire": return runExpire(ctx);
 		case "link-pr": return runLinkPr(ctx);
+		case "view-edit": return runViewEdit(ctx);
 	}
 }
 //#endregion

@@ -75,12 +75,13 @@ export function createGitHubApi(token: string, repo: { owner: string; repo: stri
       await octokit.rest.reactions
         .createForIssueComment({ owner, repo: repoName, comment_id: commentId, content })
         .catch((error: unknown) => {
-          // 422 = 已存在同款 reaction，视为幂等成功
+          // 422 = 已存在同款 reaction；404 = 评论已删除，均视为幂等成功
           if (
             typeof error === 'object' &&
             error !== null &&
             'status' in error &&
-            (error as { status?: number }).status === 422
+            ((error as { status?: number }).status === 422 ||
+              (error as { status?: number }).status === 404)
           ) {
             return;
           }

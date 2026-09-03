@@ -76,12 +76,15 @@ export async function runSync(ctx: ModeContext): Promise<void> {
     return;
   }
   if (!changed && releasedByView === 0 && rebuiltClaims === 0) {
-    core.info(`tracker issue #${issue.number} is up to date`);
-    core.setOutput(
-      'issue-url',
-      `https://github.com/${ctx.repo.owner}/${ctx.repo.repo}/issues/${issue.number}`,
-    );
-    return;
+    // 显式模板 = 布局真相源：正文与模板渲染不一致（如手写编辑漂移）时不视为 no-op
+    if (!ctx.templateExplicit || rendered === baseBody) {
+      core.info(`tracker issue #${issue.number} is up to date`);
+      core.setOutput(
+        'issue-url',
+        `https://github.com/${ctx.repo.owner}/${ctx.repo.repo}/issues/${issue.number}`,
+      );
+      return;
+    }
   }
   await ctx.api.updateIssueBody(issue.number, rendered);
   core.setOutput(

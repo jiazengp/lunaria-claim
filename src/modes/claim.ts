@@ -5,6 +5,7 @@ import {
   extractKnownPaths,
   hasIntent,
   parseClaimComment,
+  releaseClaimsByCommentId,
 } from '../claims.js';
 import { readEventPayload } from '../event.js';
 import { message } from '../messages.js';
@@ -18,6 +19,7 @@ import {
 } from './index.js';
 
 interface IssueCommentEvent {
+  action?: 'created' | 'edited' | 'deleted';
   comment: {
     id: number;
     body: string;
@@ -43,6 +45,33 @@ export async function runClaim(ctx: ModeContext): Promise<void> {
   }
   const { state } = loadTrackerState(ctx, issue, 'claim processing');
 
+  // 账本语义：编辑 = 先释放该评论的全部活跃认领，再按新正文完整重放；
+  // 删除 = 只静默释放 + 写回（不解析正文、不打 reaction、不回复）。
+  let releasedByEdit = 0;
+  if (event.action === 'edited') {
+    releasedByEdit = releaseClaimsByCommentId(state, event.comment.id, ctx.now, 'voluntary').length;
+    core.info(
+      `comment #${event.comment.id} edited: released ${releasedByEdit} previous claim(s), replaying new content`,
+    );
+  } else if (event.action === 'deleted') {
+    const released = releaseClaimsByCommentId(state, event.comment.id, ctx.now, 'voluntary');
+    if (released.length === 0) {
+      core.info('deleted comment had no active claims, nothing to do');
+      return;
+    }
+    const updated = recomposeTrackerBody(ctx, issue.body, state);
+    await ctx.api.updateIssueBody(issue.number, updated);
+    core.info(
+      `released ${released.length} claim(s) after comment #${event.comment.id} was deleted`,
+    );
+    await writeStepSummary(
+      `**🗑️ Claim comment deleted (issue #${event.issue.number})**
+      
+- Released: ${released.length}`,
+    );
+    return;
+  }
+
   const body = event.comment.body;
   const commands = parseClaimComment(body);
   const claimTokens = commands.filter((c) => c.kind === 'claim').flatMap((c) => c.paths);
@@ -53,6 +82,18 @@ export async function runClaim(ctx: ModeContext): Promise<void> {
     hasIntent(body, ctx.config.lenientKeywords);
   const lenientTokens = lenient ? lenientTargets(body, state) : [];
   if (claimTokens.length === 0 && releaseTokens.length === 0 && lenientTokens.length === 0) {
+    if (releasedByEdit > 0) {
+      // 编辑成普通文字 = 只释放：把 edited 分支的释放落盘
+      const updated = recomposeTrackerBody(ctx, issue.body, state);
+      await ctx.api.updateIssueBody(issue.number, updated);
+      core.info('no claim/release intent in the edited content; persisted the releases only');
+      await writeStepSummary(
+        `**✏️ Claim comment edited (issue #${event.issue.number})**
+        
+- Released: ${releasedByEdit} previous claim(s) (new content has no claim intent)`,
+      );
+      return;
+    }
     core.info('no claim/release intent found, treating as a normal comment');
     return;
   }
@@ -101,7 +142,7 @@ export async function runClaim(ctx: ModeContext): Promise<void> {
     }
   }
 
-  const changed = before !== JSON.stringify(state.claims);
+  const changed = before !== JSON.stringify(state.claims) || releasedByEdit > 0;
   if (changed) {
     const updated = recomposeTrackerBody(ctx, issue.body, state);
     await ctx.api.updateIssueBody(issue.number, updated);
