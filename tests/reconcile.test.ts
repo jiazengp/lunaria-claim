@@ -59,4 +59,20 @@ describe('reconcile change detection', () => {
     const { changed } = reconcile(baseState, shifted, now);
     expect(changed).toBe(true);
   });
+
+  it('a second run with a done file and no changes is not flagged as changed', () => {
+    const withDone = [
+      ...baseState.files,
+      { sharedPath: 'b', locale: 'ja', status: 'done' as const },
+    ];
+    const first = reconcile({ version: 1, files: [], claims: [] }, withDone, now);
+    const second = reconcile(first.state, withDone, now);
+    expect(second.changed).toBe(false);
+  });
+
+  it('a claim on a file that just became done is released as completed', () => {
+    const { state } = reconcile(baseState, [{ ...baseState.files[0]!, status: 'done' }], now);
+    expect(state.claims[0]?.releaseReason).toBe('completed');
+    expect(state.claims[0]?.releasedAt).toBeDefined();
+  });
 });
