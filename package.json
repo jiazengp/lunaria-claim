@@ -1,6 +1,6 @@
 {
   "name": "lunaria-claim",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "private": true,
   "type": "module",
   "description": "GitHub Action that manages translation claim issues driven by Lunaria status output",
