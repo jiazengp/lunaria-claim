@@ -392,8 +392,9 @@ describe('docs #555 layout (per-locale placeholders inside their own FILES marke
     expect(out.match(/- \[ \] `[^`]+`/g)).toHaveLength(2);
     expect(out).toContain('- [ ] `src/en/agreement.md`');
     expect(out).toContain('- [ ] `src/ja/callback.md`');
-    // 状态块只剩一套（open 标记唯一）且为注释隐藏格式，正文不再有可见 JSON
+    // 状态块只剩一套（open 标记唯一），JSON 包裹在注释内（正文隐藏、字符串存在）
     expect(out.match(/LUNARIA-CLAIM:STATE v1 -->/g)).toHaveLength(1);
-    expect(out).not.toContain('{"version":');
+    expect(out).toContain('<!--\n{"version":');
+    expect(out).not.toContain('-->{"version":');
   });
 });
