@@ -53827,19 +53827,6 @@ function createGitHubApi(token, repo) {
 				body
 			});
 		},
-		async getComment(commentId) {
-			const { data } = await octokit.rest.issues.getComment({
-				owner,
-				repo: repoName,
-				comment_id: commentId
-			});
-			return {
-				body: data.body ?? "",
-				user: data.user?.login ?? "",
-				createdAt: data.created_at,
-				htmlUrl: data.html_url
-			};
-		},
 		async listComments(issueNumber) {
 			return (await octokit.paginate(octokit.rest.issues.listComments, {
 				owner,
@@ -54161,7 +54148,7 @@ async function runSync(ctx) {
 	const { state, changed } = reconcile(current, desiredFiles, ctx.now);
 	const rendered = recomposeTrackerBody(ctx, baseBody, state);
 	if (dryRun) {
-		await writeSyncSummary(ctx, state, rendered, {
+		await writeSyncSummary(state, rendered, {
 			preview: true,
 			issueNumber: issue?.number ?? null,
 			rebuiltClaims,
@@ -54176,7 +54163,7 @@ async function runSync(ctx) {
 			labels: [ctx.config.issue.label]
 		});
 		setOutput("issue-url", `https://github.com/${ctx.repo.owner}/${ctx.repo.repo}/issues/${number}`);
-		await writeSyncSummary(ctx, state, rendered, {
+		await writeSyncSummary(state, rendered, {
 			preview: false,
 			issueNumber: number,
 			rebuiltClaims,
@@ -54191,7 +54178,7 @@ async function runSync(ctx) {
 	}
 	await ctx.api.updateIssueBody(issue.number, rendered);
 	setOutput("issue-url", `https://github.com/${ctx.repo.owner}/${ctx.repo.repo}/issues/${issue.number}`);
-	await writeSyncSummary(ctx, state, rendered, {
+	await writeSyncSummary(state, rendered, {
 		preview: false,
 		issueNumber: issue.number,
 		rebuiltClaims,
@@ -54209,7 +54196,7 @@ async function rebuildTrackerState(ctx, issueNumber, files) {
 		claims
 	};
 }
-async function writeSyncSummary(ctx, state, rendered, info) {
+async function writeSyncSummary(state, rendered, info) {
 	let body = `**${info.preview ? "🔍 Template preview (dry-run — nothing was written)" : "🤖 Tracker board updated"}**\n\n`;
 	if (info.preview) {
 		body += "```markdown\n";

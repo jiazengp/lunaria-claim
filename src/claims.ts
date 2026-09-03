@@ -1,6 +1,13 @@
 import type { ClaimConfig } from './config.js';
 import { message } from './messages.js';
-import { activeClaims, type Claim, fileKey, type TrackedFile, type TrackerState } from './model.js';
+import {
+  activeClaims,
+  type Claim,
+  fileKey,
+  type RawComment,
+  type TrackedFile,
+  type TrackerState,
+} from './model.js';
 import { parseViewCheckboxes, type ViewCheckbox } from './render.js';
 import { type ResolutionEntry, type ResolutionFailure, resolveTargets } from './resolve.js';
 import { escapeRegExp } from './utils.js';
@@ -179,14 +186,6 @@ export function applyViewEdits(state: TrackerState, body: string, now: Date): nu
     }
   }
   return released;
-}
-
-export interface RawComment {
-  id: number;
-  user: string;
-  createdAt: string;
-  htmlUrl: string;
-  body: string;
 }
 
 /**

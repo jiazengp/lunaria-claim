@@ -63,3 +63,12 @@ export function groupByLocale(files: TrackedFile[]): LocaleSection[] {
     .map(([locale, sectionFiles]) => ({ locale, files: sectionFiles }))
     .sort((a, b) => a.locale.localeCompare(b.locale));
 }
+
+/** GitHub issue 评论的原始形状（自愈回放与 API 层共用） */
+export interface RawComment {
+  id: number;
+  user: string;
+  createdAt: string;
+  htmlUrl: string;
+  body: string;
+}

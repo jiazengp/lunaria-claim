@@ -278,7 +278,6 @@ describe('rendered body updates (issue #2 regression)', () => {
   ];
 
   it('overlays regions in place and preserves text outside the markers', () => {
-    const legacyState = { version: 1 as const, files: [], claims: [] };
     const legacyBody = [
       '手写头部',
       '',

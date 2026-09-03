@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import * as core from '@actions/core';
-import { applyViewEdits, type RawComment, rebuildClaimsFromComments } from '../claims.js';
+import { applyViewEdits, rebuildClaimsFromComments } from '../claims.js';
 import { readLunariaStatus, toTrackedFiles } from '../lunaria.js';
-import type { TrackedFile, TrackerState } from '../model.js';
+import type { RawComment, TrackedFile, TrackerState } from '../model.js';
 import { reconcile } from '../reconcile.js';
 import { parseState } from '../state.js';
 import { type ModeContext, recomposeTrackerBody, writeStepSummary } from './index.js';
@@ -48,7 +48,7 @@ export async function runSync(ctx: ModeContext): Promise<void> {
   const rendered = recomposeTrackerBody(ctx, baseBody, state);
 
   if (dryRun) {
-    await writeSyncSummary(ctx, state, rendered, {
+    await writeSyncSummary(state, rendered, {
       preview: true,
       issueNumber: issue?.number ?? null,
       rebuiltClaims,
@@ -67,7 +67,7 @@ export async function runSync(ctx: ModeContext): Promise<void> {
       'issue-url',
       `https://github.com/${ctx.repo.owner}/${ctx.repo.repo}/issues/${number}`,
     );
-    await writeSyncSummary(ctx, state, rendered, {
+    await writeSyncSummary(state, rendered, {
       preview: false,
       issueNumber: number,
       rebuiltClaims,
@@ -88,7 +88,7 @@ export async function runSync(ctx: ModeContext): Promise<void> {
     'issue-url',
     `https://github.com/${ctx.repo.owner}/${ctx.repo.repo}/issues/${issue.number}`,
   );
-  await writeSyncSummary(ctx, state, rendered, {
+  await writeSyncSummary(state, rendered, {
     preview: false,
     issueNumber: issue.number,
     rebuiltClaims,
@@ -117,7 +117,6 @@ async function rebuildTrackerState(
 }
 
 async function writeSyncSummary(
-  ctx: ModeContext,
   state: TrackerState,
   rendered: string,
   info: {

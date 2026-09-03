@@ -1,4 +1,5 @@
 import { Octokit } from '@octokit/action';
+import type { RawComment } from './model.js';
 
 export type ReactionContent =
   | '+1'
@@ -16,26 +17,10 @@ export interface IssueRef {
   body: string | null;
 }
 
-export interface RawComment {
-  id: number;
-  user: string;
-  createdAt: string;
-  htmlUrl: string;
-  body: string;
-}
-
-export interface CommentInfo {
-  body: string;
-  user: string;
-  createdAt: string;
-  htmlUrl: string;
-}
-
 export interface GitHubApi {
   findTrackerIssue(label: string): Promise<IssueRef | null>;
   createIssue(params: { title: string; body: string; labels: string[] }): Promise<number>;
   updateIssueBody(issueNumber: number, body: string): Promise<void>;
-  getComment(commentId: number): Promise<CommentInfo>;
   listComments(issueNumber: number): Promise<RawComment[]>;
   reactToComment(commentId: number, content: ReactionContent): Promise<void>;
   addComment(issueNumber: number, body: string): Promise<void>;
@@ -70,19 +55,6 @@ export function createGitHubApi(token: string, repo: { owner: string; repo: stri
     },
     async updateIssueBody(issueNumber, body) {
       await octokit.rest.issues.update({ owner, repo: repoName, issue_number: issueNumber, body });
-    },
-    async getComment(commentId) {
-      const { data } = await octokit.rest.issues.getComment({
-        owner,
-        repo: repoName,
-        comment_id: commentId,
-      });
-      return {
-        body: data.body ?? '',
-        user: data.user?.login ?? '',
-        createdAt: data.created_at,
-        htmlUrl: data.html_url,
-      };
     },
     async listComments(issueNumber) {
       const comments = await octokit.paginate(octokit.rest.issues.listComments, {

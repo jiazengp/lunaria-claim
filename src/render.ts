@@ -233,6 +233,7 @@ function buildTree(files: TrackedFile[]): TreeNode {
     const parts = displayPath(file).split('/');
     let node = root;
     for (let i = 0; i < parts.length - 1; i++) {
+      // parts 的末段是文件名，循环只走到倒数第二段，索引必然存在
       const segment = parts[i]!;
       const child = node.dirs.get(segment) ?? { name: segment, dirs: new Map(), files: [] };
       node.dirs.set(segment, child);
