@@ -5,6 +5,7 @@ import {
   type Claim,
   fileKey,
   type RawComment,
+  type ReleaseReason,
   type TrackedFile,
   type TrackerState,
 } from './model.js';
@@ -131,78 +132,125 @@ export function findExpiredClaims(state: TrackerState, now: Date, ttlDays: numbe
 }
 
 /**
- * 管理员手动编辑兼容：把可见清单里的"取消勾选 / 整行删除"反写回状态，按手动释放处理。
- * 读 body 时如果连一个语言区块都没解析出来，放弃本次对账（避免误释放）。
+ * 按认领评论 id 释放其全部活跃认领（评论编辑/删除的账本语义）；返回被释放的认领。
+ * 已经被释放的认领（releasedAt 已置）不在此列，重复调用自然返回空。
  */
-export function applyViewEdits(state: TrackerState, body: string, now: Date): number {
-  const view = parseViewCheckboxes(body);
-  if (view.length === 0) return 0;
-  // 展示路径可能是 sharedPath 或目标语言文件路径，两条键都收
-  const exact = new Map<string, ViewCheckbox>();
-  const loose = new Map<string, ViewCheckbox>();
-  for (const entry of view) {
-    if (entry.locale) exact.set(fileKey(entry.locale, entry.sharedPath), entry);
-    else loose.set(entry.sharedPath, entry);
-  }
-  const findEntry = (claim: Claim): ViewCheckbox | undefined => {
-    const keys = [fileKey(claim.locale, claim.path)];
-    const file = state.files.find(
-      (candidate) => candidate.locale === claim.locale && candidate.sharedPath === claim.path,
-    );
-    if (file?.localizationPath) keys.push(fileKey(claim.locale, file.localizationPath));
-    for (const key of keys) {
-      const hit = exact.get(key);
-      if (hit) return hit;
-    }
-    const looseHit = loose.get(claim.path);
-    if (looseHit) return looseHit;
-    return file?.localizationPath ? loose.get(file.localizationPath) : undefined;
-  };
-
-  let released = 0;
+export function releaseClaimsByCommentId(
+  state: TrackerState,
+  commentId: number,
+  now: Date,
+  reason: ReleaseReason,
+): Claim[] {
+  const released: Claim[] = [];
   for (const claim of activeClaims(state)) {
-    const entry = findEntry(claim);
-    if (entry?.checked) continue;
+    if (claim.commentId !== commentId) continue;
     claim.releasedAt = now.toISOString();
-    claim.releaseReason = 'manual';
-    released++;
+    claim.releaseReason = reason;
+    released.push(claim);
   }
-  // 目录行取消勾选 = 释放该目录下的全部认领；目录前缀可能是 sharedPath 或展示路径形态。
-  // 只有"上一轮渲染时该行是勾选态"（子树已全认领，见 renderTree 的 allClaimed 判定）的
-  // 取消勾选才是有效的管理员释放信号；部分认领的子树的目录行本来就没勾选，忽略之。
-  for (const entry of view) {
-    if (!entry.sharedPath.endsWith('/') || entry.checked) continue;
-    const prefix = entry.sharedPath;
+  return released;
+}
+
+/** 判断用：目录行算子树时，前缀也接受展示路径（localizationPath）形态 */
+function claimMatchesPrefix(claim: Claim, state: TrackerState, prefix: string): boolean {
+  const file = state.files.find(
+    (candidate) => candidate.locale === claim.locale && candidate.sharedPath === claim.path,
+  );
+  return claim.path.startsWith(prefix) || file?.localizationPath?.startsWith(prefix) === true;
+}
+
+/**
+ * 视图条目（文件行或目录行）对应的活跃认领：
+ * - 文件行：locale+路径精确匹配（sharedPath 或 localizationPath 形态），无 locale 时按路径兜底；
+ * - 目录行：子树（sharedPath/展示路径前缀）对应的认领，子树全部被认领才算数
+ *   （Fix D 守卫：部分认领的子树目录行本就没勾选，不该被当成释放信号）。
+ */
+export function viewEntryClaims(state: TrackerState, entry: ViewCheckbox): Claim[] {
+  const active = activeClaims(state);
+  const prefix = entry.sharedPath;
+  if (prefix.endsWith('/')) {
     const subtree = state.files.filter(
       (candidate) =>
         (entry.locale ? candidate.locale === entry.locale : true) &&
         (candidate.sharedPath.startsWith(prefix) ||
           candidate.localizationPath?.startsWith(prefix) === true),
     );
-    // state.files 覆盖不到该前缀时保持旧语义（仅构造认领的测试形态），按认领前缀直接释放
+    // state.files 覆盖不到该前缀时保持旧语义（仅构造认领的测试形态），按认领前缀直接返回
     const fullyClaimed =
       subtree.length === 0 ||
       subtree.every((file) =>
-        activeClaims(state).some(
+        active.some(
           (claim) => fileKey(claim.locale, claim.path) === fileKey(file.locale, file.sharedPath),
         ),
       );
-    if (!fullyClaimed) continue;
-    for (const claim of activeClaims(state)) {
-      const localeMatch = entry.locale ? claim.locale === entry.locale : true;
-      if (!localeMatch) continue;
-      const file = state.files.find(
-        (candidate) => candidate.locale === claim.locale && candidate.sharedPath === claim.path,
-      );
-      const displayPrefixOk = file?.localizationPath?.startsWith(prefix) === true;
-      if (claim.path.startsWith(prefix) || displayPrefixOk) {
-        claim.releasedAt = now.toISOString();
-        claim.releaseReason = 'manual';
-        released++;
-      }
-    }
+    if (!fullyClaimed) return [];
+    return active.filter(
+      (claim) =>
+        (entry.locale ? claim.locale === entry.locale : true) &&
+        claimMatchesPrefix(claim, state, prefix),
+    );
+  }
+  return active.filter((claim) => {
+    const file = state.files.find(
+      (candidate) => candidate.locale === claim.locale && candidate.sharedPath === claim.path,
+    );
+    const keys = [fileKey(claim.locale, claim.path)];
+    if (file?.localizationPath) keys.push(fileKey(claim.locale, file.localizationPath));
+    if (entry.locale) return keys.includes(fileKey(entry.locale, entry.sharedPath));
+    return claim.path === entry.sharedPath || file?.localizationPath === entry.sharedPath;
+  });
+}
+
+/** 按视图条目释放认领（勾选行不动作；目录行带全认领守卫）；返回被释放的认领 */
+export function releaseClaimForViewEntry(
+  state: TrackerState,
+  entry: ViewCheckbox,
+  now: Date,
+): Claim[] {
+  if (entry.checked) return [];
+  const released: Claim[] = [];
+  for (const claim of viewEntryClaims(state, entry)) {
+    claim.releasedAt = now.toISOString();
+    claim.releaseReason = 'manual';
+    released.push(claim);
   }
   return released;
+}
+
+/**
+ * 管理员手动编辑兼容：把可见清单里的"取消勾选 / 整行删除"反写回状态，按手动释放处理。
+ * 读 body 时如果连一个语言区块都没解析出来，放弃本次对账（避免误释放）。
+ */
+export function applyViewEdits(state: TrackerState, body: string, now: Date): number {
+  const view = parseViewCheckboxes(body);
+  if (view.length === 0) return 0;
+  // 展示路径可能是 sharedPath 或目标语言文件路径，两条键都收；重复行以最后一行为准（历史语义）
+  const exact = new Map<string, ViewCheckbox>();
+  const loose = new Map<string, ViewCheckbox>();
+  for (const entry of view) {
+    if (entry.sharedPath.endsWith('/')) continue;
+    if (entry.locale) exact.set(fileKey(entry.locale, entry.sharedPath), entry);
+    else loose.set(entry.sharedPath, entry);
+  }
+  // 认领侧：对应行存在且勾选（文件行）才保留；行缺失或未勾选 = 手动释放
+  const kept = new Set<Claim>();
+  for (const entry of [...exact.values(), ...loose.values()]) {
+    if (!entry.checked) continue;
+    for (const claim of viewEntryClaims(state, entry)) kept.add(claim);
+  }
+  const released = new Set<Claim>();
+  for (const claim of activeClaims(state)) {
+    if (kept.has(claim)) continue;
+    claim.releasedAt = now.toISOString();
+    claim.releaseReason = 'manual';
+    released.add(claim);
+  }
+  // 目录行取消勾选 = 释放该目录下的全部认领（子树全认领守卫见 viewEntryClaims）
+  for (const entry of view) {
+    if (!entry.sharedPath.endsWith('/')) continue;
+    for (const claim of releaseClaimForViewEntry(state, entry, now)) released.add(claim);
+  }
+  return released.size;
 }
 
 /**
