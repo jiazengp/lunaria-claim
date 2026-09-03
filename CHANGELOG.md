@@ -2,11 +2,16 @@
 
 本项目的重要变更都会记录在此文件。
 
-格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。项目尚未发布正式版本（远端无 tag），以下内容均属未发布。
+格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
 ## [Unreleased]
 
-（暂无）
+### 优化
+
+- 清单目录行带 checkbox：子树全部认领时打勾；管理员取消勾选目录 = 释放该目录下所有认领
+- 状态块 JSON 改为 HTML 注释包裹，正文渲染不可见（Raw 视图可见）；旧格式自动兼容迁移
+- 未认领清单行提供可点击路径（缺失 → Create file 页、过期 → 编辑页），并附 `[source]` 原文链接与 `[history]` 原文变更历史链接；目录行为仓库目录链接
+- 移除过期文件的 ⚠️ 徽标：过期即未勾选、按待认领处理
 
 ## [1.1.1] - 2026-09-03
 
@@ -14,6 +19,7 @@
 
 - **发布阻断修复**：`dist/index.mjs` 此前把 `@actions/core` / `yaml` / `zod` / `@octokit/action` 当 external 未捆绑，而 Actions runner 只拿仓库内容、不安装依赖，导致 `@v1` 在真实 runner 上 `ERR_MODULE_NOT_FOUND`。现已通过 tsdown `noExternal` 捆绑全部直接依赖，并新增 runner 冒烟测试（`npm run smoke`，模拟无 node_modules 的 runner 加载入口）纳入 CI，从流程上防止复发
 
+## [1.1.0] - 2026-09-03
 
 ### 新增
 
@@ -40,3 +46,14 @@
 - 模板支持按语言独立占位符（`{{files_ja}}` 等），多语言区块可自由排版；`{{files}}` 兼容保留
 - 模板文件位置可在配置里指定（`templatePath`，默认 `.github/lunaria-claim.md`）
 - 兼容管理员手动编辑：在 issue 里取消勾选或删除某行，会将该认领按手动释放处理，bot 更新时去掉 @引用并恢复未认领；正文手写内容不会被覆盖
+
+### 文档
+
+- 接入指南 [docs/quick-start.md](docs/quick-start.md)（含 Lunaria 配置、灰度上线、配置参考、FAQ）
+- 可直接复制的接入样例（examples：workflow、配置、issue 模板）
+- [README.md](README.md)：项目定位、两步接入、认领协议
+
+### 技术栈
+
+- TypeScript（原生编译器）类型检查 + tsdown 构建（ESM / node24 产物）+ vitest 测试 + biome 检查
+- 入口 `main.cjs`（Actions runner 的 CJS 兼容壳，动态导入 `dist/index.mjs`）

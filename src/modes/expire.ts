@@ -38,7 +38,12 @@ export async function runExpire(ctx: ModeContext): Promise<void> {
       }),
     );
   }
-  const body = renderBody(issue.body, groupByLocale(state.files), state, renderOptions(ctx.config));
+  const body = renderBody(
+    issue.body,
+    groupByLocale(state.files),
+    state,
+    renderOptions(ctx.config, ctx.repo, state.files),
+  );
   await ctx.api.updateIssueBody(issue.number, body);
   core.info(`released ${expired.length} expired claim(s) on issue #${issue.number}`);
   await writeStepSummary(

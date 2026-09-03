@@ -53400,9 +53400,9 @@ function escapeRegExp(value) {
 }
 //#endregion
 //#region src/state.ts
-const STATE_BLOCK_RE = new RegExp(`${escapeRegExp(STATE_OPEN)}\\n([\\s\\S]*?)\\n${escapeRegExp(STATE_CLOSE)}`);
+const STATE_BLOCK_RE = new RegExp(`${escapeRegExp(STATE_OPEN)}\\n(?:<!--\\n)?([\\s\\S]*?)(?:\\n-->)?\\n${escapeRegExp(STATE_CLOSE)}`);
 function serializeState(state) {
-	return `${STATE_OPEN}\n${JSON.stringify(state)}\n${STATE_CLOSE}`;
+	return `${STATE_OPEN}\n<!--\n${JSON.stringify(state)}\n-->\n${STATE_CLOSE}`;
 }
 /** 状态块损坏时返回 null，由调用方决定走模板重建或报错 */
 function parseState(body) {
@@ -53422,19 +53422,24 @@ function isTrackerState(value) {
 }
 //#endregion
 //#region src/render.ts
-const STATUS_BADGE = {
-	missing: "",
-	outdated: " ⚠️ 源文件已更新，需要重新翻译",
-	done: ""
-};
 const STATE_REGION_RE = new RegExp(`${escapeRegExp(STATE_OPEN)}\\n[\\s\\S]*?\\n${escapeRegExp(STATE_CLOSE)}`);
 /** {{files}} 或 {{files_<lang>}}，lang 为 lunaria 配置里的语言代码（如 ja、zh-CN） */
 const FILES_PLACEHOLDER_RE = /\{\{\s*files(?:_([A-Za-z0-9-]+))?\s*\}\}/g;
-function renderOptions(config) {
+function renderOptions(config, repo, files) {
 	return {
 		collapseThreshold: config.collapseThreshold,
-		fileListStyle: config.fileListStyle
+		fileListStyle: config.fileListStyle,
+		repoUrl: repo ? `https://github.com/${repo.owner}/${repo.repo}` : void 0,
+		branch: files ? resolveBranch(files) : "main"
 	};
+}
+/** 从 sourceUrl（.../blob/<branch>/...）推断默认分支 */
+function resolveBranch(files) {
+	for (const file of files) {
+		const match = /\/blob\/([^/]+)\//.exec(file.sourceUrl ?? "");
+		if (match?.[1]) return match[1];
+	}
+	return "main";
 }
 function applyPlaceholders(template, vars) {
 	return replaceOutsideHtmlComments(template, /\{\{\s*([a-z_]+)\s*\}\}/gi, (match, key) => vars[key] ?? match);
@@ -53465,7 +53470,7 @@ function hasOutsideComments(source, pattern) {
 }
 /**
 * 用 state + 清单重渲染 body：
-* - `<!-- LUNARIA-CLAIM:STATE v1 -->` 状态块整体替换；
+* - `<!-- LUNARIA-CLAIM:STATE v1 -->` 状态块整体替换（JSON 在注释里，正文不可见）；
 * - `{{files}}` 渲染所有语言的清单，`{{files_<lang>}}` 渲染单个语言（可散置、可插入任意文字）；
 * 其余内容原样保留。
 */
@@ -53480,7 +53485,7 @@ function renderBody(body, sections, state, options) {
 		return byLocale.get(locale) ?? match;
 	}).replace(STATE_REGION_RE, () => serializeState(state));
 }
-/** 从 body 的可见清单解析勾选状态；语言上下文取最近的上方 `### 🌐 <lang>` 标题 */
+/** 从 body 的可见清单解析勾选状态（文件行与目录行都算）；语言上下文取最近的上方标题 */
 function parseViewCheckboxes(body) {
 	const HEADING_RE = /^### 🌐 ([A-Za-z0-9-]+)$/;
 	const CHECKBOX_RE = /^ {0,10}- \[([ xX])\] `([^`]+)`/;
@@ -53505,8 +53510,8 @@ function parseViewCheckboxes(body) {
 }
 function renderSection(section, claimsByFile, options) {
 	const lines = [];
-	if (options.fileListStyle === "tree") renderTree(buildTree(section.files), 0, lines, claimsByFile);
-	else for (const file of section.files) lines.push(renderFileLine(file, claimsByFile));
+	if (options.fileListStyle === "tree") renderTree(buildTree(section.files), 0, "", lines, claimsByFile, options);
+	else for (const file of section.files) lines.push(renderFileLine(file, claimsByFile, options));
 	const heading = `### 🌐 ${section.locale}`;
 	if (section.files.length > options.collapseThreshold) return `${heading}\n\n<details><summary>共 ${section.files.length} 个文件待处理（点击展开）</summary>\n\n${lines.join("\n")}\n\n</details>`;
 	return `${heading}\n\n${lines.join("\n")}`;
@@ -53534,22 +53539,40 @@ function buildTree(files) {
 	}
 	return root;
 }
-/** 目录在前、文件在后，各自按路径排序；叶子始终输出完整 sharedPath，方便整条复制认领 */
-function renderTree(node, depth, lines, claimsByFile) {
+/** 目录在前、文件在后，各自按路径排序；目录行可勾选（子树全部认领即打勾），叶子始终输出完整 sharedPath */
+function renderTree(node, depth, dirPath, lines, claimsByFile, options) {
 	const pad = "  ".repeat(depth);
 	const dirs = [...node.dirs.values()].sort((a, b) => a.name.localeCompare(b.name));
 	const files = [...node.files].sort((a, b) => a.sharedPath.localeCompare(b.sharedPath));
 	for (const dir of dirs) {
-		lines.push(`${pad}- \`${dir.name}/\``);
-		renderTree(dir, depth + 1, lines, claimsByFile);
+		const allClaimed = collectFiles(dir).every((file) => claimsByFile.has(fileKey(file.locale, file.sharedPath)));
+		const full = dirPath ? `${dirPath}/${dir.name}` : dir.name;
+		const label = options.repoUrl ? `[\`${dir.name}/\`](${options.repoUrl}/tree/${options.branch ?? "main"}/${full})` : `\`${dir.name}/\``;
+		lines.push(`${pad}- [${allClaimed ? "x" : " "}] ${label}`);
+		renderTree(dir, depth + 1, full, lines, claimsByFile, options);
 	}
-	for (const file of files) lines.push(`${pad}${renderFileLine(file, claimsByFile)}`);
+	for (const file of files) lines.push(`${pad}${renderFileLine(file, claimsByFile, options)}`);
 }
-function renderFileLine(file, claimsByFile) {
+function collectFiles(node) {
+	return [...node.files, ...[...node.dirs.values()].flatMap(collectFiles)];
+}
+function renderFileLine(file, claimsByFile, options) {
 	const claim = claimsByFile.get(fileKey(file.locale, file.sharedPath));
 	const checked = claim ? "x" : " ";
-	const owner = claim ? ` — @${claim.user} · ${claim.claimedAt.slice(0, 10)}${claim.prUrl ? ` · [PR](${claim.prUrl})` : ""}` : "";
-	return `- [${checked}] \`${file.sharedPath}\`${STATUS_BADGE[file.status]}${owner}`;
+	const repoUrl = options.repoUrl ?? "";
+	const branch = options.branch ?? "main";
+	const actionUrl = repoUrl && file.localizationPath ? file.status === "missing" ? `${repoUrl}/new/${branch}/${file.localizationPath}` : `${repoUrl}/edit/${branch}/${file.localizationPath}` : "";
+	const pathText = actionUrl ? `[\`${file.sharedPath}\`](${actionUrl})` : `\`${file.sharedPath}\``;
+	let tail = "";
+	if (claim) tail = ` — @${claim.user} · ${claim.claimedAt.slice(0, 10)}${claim.prUrl ? ` · [PR](${claim.prUrl})` : ""}`;
+	else {
+		const refs = [];
+		if (file.status === "missing" && actionUrl) refs.push(`[Create file](${actionUrl})`);
+		if (repoUrl && file.sourceUrl) refs.push(`[source](${file.sourceUrl})`);
+		if (repoUrl && file.sourceHistoryUrl) refs.push(`[history](${file.sourceHistoryUrl})`);
+		if (refs.length > 0) tail = ` · ${refs.join(" · ")}`;
+	}
+	return `- [${checked}] ${pathText}${tail}`;
 }
 //#endregion
 //#region src/resolve.ts
@@ -53716,11 +53739,20 @@ function applyViewEdits(state, body, now) {
 	if (view.length === 0) return 0;
 	const byKey = new Map(view.map((entry) => [fileKey(entry.locale, entry.sharedPath), entry]));
 	let released = 0;
-	for (const claim of activeClaims(state)) {
+	const claims = activeClaims(state);
+	for (const claim of claims) {
 		if (byKey.get(fileKey(claim.locale, claim.path))?.checked) continue;
 		claim.releasedAt = now.toISOString();
 		claim.releaseReason = "manual";
 		released++;
+	}
+	for (const entry of view) {
+		if (!entry.sharedPath.endsWith("/") || entry.checked) continue;
+		for (const claim of activeClaims(state)) if (claim.locale === entry.locale && claim.path.startsWith(entry.sharedPath)) {
+			claim.releasedAt = now.toISOString();
+			claim.releaseReason = "manual";
+			released++;
+		}
 	}
 	return released;
 }
@@ -53860,7 +53892,7 @@ async function runClaim(ctx) {
 	}
 	const changed = before !== JSON.stringify(state.claims);
 	if (changed) {
-		const updated = renderBody(issue.body, groupByLocale(state.files), state, renderOptions(ctx.config));
+		const updated = renderBody(issue.body, groupByLocale(state.files), state, renderOptions(ctx.config, ctx.repo, state.files));
 		await ctx.api.updateIssueBody(issue.number, updated);
 	}
 	if (claimedAny) await ctx.api.reactToComment(event.comment.id, "rocket");
@@ -53915,7 +53947,7 @@ async function runExpire(ctx) {
 			ttlDays: String(ctx.config.ttlDays)
 		}));
 	}
-	const body = renderBody(issue.body, groupByLocale(state.files), state, renderOptions(ctx.config));
+	const body = renderBody(issue.body, groupByLocale(state.files), state, renderOptions(ctx.config, ctx.repo, state.files));
 	await ctx.api.updateIssueBody(issue.number, body);
 	info(`released ${expired.length} expired claim(s) on issue #${issue.number}`);
 	await writeStepSummary(`**⏰ Expiry sweep (issue #${issue.number})**
@@ -53955,7 +53987,7 @@ async function runLinkPr(ctx) {
 		info(`PR #${pr.number} does not match any active claim`);
 		return;
 	}
-	const updated = renderBody(issue.body, groupByLocale(state.files), state, renderOptions(ctx.config));
+	const updated = renderBody(issue.body, groupByLocale(state.files), state, renderOptions(ctx.config, ctx.repo, state.files));
 	await ctx.api.updateIssueBody(issue.number, updated);
 	info(`linked PR #${pr.number} to ${linked.length} claim(s), expiry frozen`);
 	await writeStepSummary(`**🔗 PR linked (PR #${pr.number})**
@@ -53977,7 +54009,7 @@ async function handleClosed(ctx, issueNumber, body, state, pr) {
 		info("no claims linked to this PR");
 		return;
 	}
-	const updated = renderBody(body, groupByLocale(state.files), state, renderOptions(ctx.config));
+	const updated = renderBody(body, groupByLocale(state.files), state, renderOptions(ctx.config, ctx.repo, state.files));
 	await ctx.api.updateIssueBody(issueNumber, updated);
 	await ctx.api.addComment(issueNumber, message(ctx.config, "pr_closed", {
 		user: pr.user.login,
@@ -53996,23 +54028,32 @@ function readLunariaStatus(path) {
 /** done 不进认领清单：翻译完成与否完全以 Lunaria 为准，由 sync 对账移出 */
 function toTrackedFiles(status, locales) {
 	const files = [];
-	for (const item of status) for (const locale of locales) {
-		const loc = item.localizations[locale];
-		if (!loc) continue;
-		const derived = item.sourceFile.path.includes(`/${item.sourceFile.lang}/`) ? item.sourceFile.path.replace(`/${item.sourceFile.lang}/`, `/${locale}/`) : void 0;
-		const localizationPath = !loc.isMissing && loc.path ? loc.path : derived;
-		if (loc.isMissing) files.push({
-			sharedPath: item.sharedPath,
-			locale,
-			status: "missing",
-			localizationPath
-		});
-		else if (loc.isOutdated) files.push({
-			sharedPath: item.sharedPath,
-			locale,
-			status: "outdated",
-			localizationPath
-		});
+	const toUrl = (url) => url?.replace(/\\/g, "/");
+	for (const item of status) {
+		const sourceUrl = toUrl(item.sourceFile.gitHostingFileURL);
+		const sourceHistoryUrl = toUrl(item.sourceFile.gitHostingHistoryURL);
+		for (const locale of locales) {
+			const loc = item.localizations[locale];
+			if (!loc) continue;
+			const derived = item.sourceFile.path.includes(`/${item.sourceFile.lang}/`) ? item.sourceFile.path.replace(`/${item.sourceFile.lang}/`, `/${locale}/`) : void 0;
+			const localizationPath = !loc.isMissing && loc.path ? loc.path : derived;
+			if (loc.isMissing) files.push({
+				sharedPath: item.sharedPath,
+				locale,
+				status: "missing",
+				localizationPath,
+				sourceUrl,
+				sourceHistoryUrl
+			});
+			else if (loc.isOutdated) files.push({
+				sharedPath: item.sharedPath,
+				locale,
+				status: "outdated",
+				localizationPath,
+				sourceUrl,
+				sourceHistoryUrl
+			});
+		}
 	}
 	return files;
 }
@@ -54078,7 +54119,7 @@ async function runSync(ctx) {
 	}
 	const releasedByView = applyViewEdits(current, baseBody, ctx.now);
 	const { state, sections, changed } = reconcile(current, desiredFiles, ctx.now);
-	const rendered = applyPlaceholders(renderBody(baseBody, sections, state, renderOptions(ctx.config)), {
+	const rendered = applyPlaceholders(renderBody(baseBody, sections, state, renderOptions(ctx.config, ctx.repo, state.files)), {
 		ttl_days: String(ctx.config.ttlDays),
 		dashboard_url: ctx.config.dashboardUrl ?? ""
 	});

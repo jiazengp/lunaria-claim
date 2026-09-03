@@ -14,6 +14,10 @@ export interface TrackedFile {
   status: FileStatusKind;
   /** 翻译文件的实际仓库路径（status.json 提供时才有，用于 PR 关联匹配） */
   localizationPath?: string;
+  /** 原文文件的仓库链接（status.json 的 gitHostingFileURL） */
+  sourceUrl?: string;
+  /** 原文文件的变更历史链接（status.json 的 gitHostingHistoryURL） */
+  sourceHistoryUrl?: string;
 }
 
 export interface Claim {

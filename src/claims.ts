@@ -134,12 +134,24 @@ export function applyViewEdits(state: TrackerState, body: string, now: Date): nu
     view.map((entry) => [fileKey(entry.locale, entry.sharedPath), entry] as const),
   );
   let released = 0;
-  for (const claim of activeClaims(state)) {
+  const claims = activeClaims(state);
+  for (const claim of claims) {
     const entry = byKey.get(fileKey(claim.locale, claim.path));
     if (entry?.checked) continue;
     claim.releasedAt = now.toISOString();
     claim.releaseReason = 'manual';
     released++;
+  }
+  // 目录行取消勾选 = 释放该目录下的全部认领
+  for (const entry of view) {
+    if (!entry.sharedPath.endsWith('/') || entry.checked) continue;
+    for (const claim of activeClaims(state)) {
+      if (claim.locale === entry.locale && claim.path.startsWith(entry.sharedPath)) {
+        claim.releasedAt = now.toISOString();
+        claim.releaseReason = 'manual';
+        released++;
+      }
+    }
   }
   return released;
 }

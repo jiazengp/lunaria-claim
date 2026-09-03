@@ -47,10 +47,10 @@ describe('real-world VitePress docs pipeline', () => {
     );
     expect(body).toContain('### 🌐 en');
     expect(body).toContain('### 🌐 ja');
-    // 树状：出现目录行，checkbox 行数与清单条目一致（叶子保留完整 sharedPath）
-    expect(body).toContain('- `src/`');
+    // 树状：目录行也带 checkbox；文件 checkbox 数至少等于清单条目数
+    expect(body).toContain('- [ ] `src/`');
     const checkboxCount = (body.match(/^ {0,10}- \[[ x]\]/gm) ?? []).length;
-    expect(checkboxCount).toBe(state.files.length);
+    expect(checkboxCount).toBeGreaterThanOrEqual(state.files.length);
     expect(body.length).toBeLessThan(65536);
     expect(parseState(body)).toEqual(state);
     expect(body).toContain(serializeState(state));

@@ -2,7 +2,6 @@ import type { FileListStyle } from './config.js';
 import {
   activeClaims,
   type Claim,
-  type FileStatusKind,
   fileKey,
   type LocaleSection,
   STATE_CLOSE,
@@ -12,12 +11,6 @@ import {
 } from './model.js';
 import { serializeState } from './state.js';
 import { escapeRegExp } from './utils.js';
-
-const STATUS_BADGE: Record<FileStatusKind, string> = {
-  missing: '',
-  outdated: ' ⚠️ 源文件已更新，需要重新翻译',
-  done: '',
-};
 
 const STATE_REGION_RE = new RegExp(
   `${escapeRegExp(STATE_OPEN)}\\n[\\s\\S]*?\\n${escapeRegExp(STATE_CLOSE)}`,
@@ -29,13 +22,32 @@ const FILES_PLACEHOLDER_RE = /\{\{\s*files(?:_([A-Za-z0-9-]+))?\s*\}\}/g;
 export interface RenderOptions {
   collapseThreshold: number;
   fileListStyle: FileListStyle;
+  /** 仓库主页地址（如 https://github.com/owner/repo），提供后路径/链接才渲染 */
+  repoUrl?: string;
+  /** 认领文件所在的分支；缺省时从 sourceUrl 推断，再兜底 main */
+  branch?: string;
 }
 
-export function renderOptions(config: {
-  collapseThreshold: number;
-  fileListStyle: FileListStyle;
-}): RenderOptions {
-  return { collapseThreshold: config.collapseThreshold, fileListStyle: config.fileListStyle };
+export function renderOptions(
+  config: { collapseThreshold: number; fileListStyle: FileListStyle },
+  repo?: { owner: string; repo: string },
+  files?: readonly TrackedFile[],
+): RenderOptions {
+  return {
+    collapseThreshold: config.collapseThreshold,
+    fileListStyle: config.fileListStyle,
+    repoUrl: repo ? `https://github.com/${repo.owner}/${repo.repo}` : undefined,
+    branch: files ? resolveBranch(files) : 'main',
+  };
+}
+
+/** 从 sourceUrl（.../blob/<branch>/...）推断默认分支 */
+export function resolveBranch(files: readonly TrackedFile[]): string {
+  for (const file of files) {
+    const match = /\/blob\/([^/]+)\//.exec(file.sourceUrl ?? '');
+    if (match?.[1]) return match[1];
+  }
+  return 'main';
 }
 
 export function applyPlaceholders(template: string, vars: Record<string, string>): string {
@@ -78,7 +90,7 @@ function hasOutsideComments(source: string, pattern: RegExp): boolean {
 
 /**
  * 用 state + 清单重渲染 body：
- * - `<!-- LUNARIA-CLAIM:STATE v1 -->` 状态块整体替换；
+ * - `<!-- LUNARIA-CLAIM:STATE v1 -->` 状态块整体替换（JSON 在注释里，正文不可见）；
  * - `{{files}}` 渲染所有语言的清单，`{{files_<lang>}}` 渲染单个语言（可散置、可插入任意文字）；
  * 其余内容原样保留。
  */
@@ -117,7 +129,7 @@ export interface ViewCheckbox {
   checked: boolean;
 }
 
-/** 从 body 的可见清单解析勾选状态；语言上下文取最近的上方 `### 🌐 <lang>` 标题 */
+/** 从 body 的可见清单解析勾选状态（文件行与目录行都算）；语言上下文取最近的上方标题 */
 export function parseViewCheckboxes(body: string): ViewCheckbox[] {
   const HEADING_RE = /^### 🌐 ([A-Za-z0-9-]+)$/;
   const CHECKBOX_RE = /^ {0,10}- \[([ xX])\] `([^`]+)`/;
@@ -144,9 +156,9 @@ function renderSection(
 ): string {
   const lines: string[] = [];
   if (options.fileListStyle === 'tree') {
-    renderTree(buildTree(section.files), 0, lines, claimsByFile);
+    renderTree(buildTree(section.files), 0, '', lines, claimsByFile, options);
   } else {
-    for (const file of section.files) lines.push(renderFileLine(file, claimsByFile));
+    for (const file of section.files) lines.push(renderFileLine(file, claimsByFile, options));
   }
   const heading = `### 🌐 ${section.locale}`;
   if (section.files.length > options.collapseThreshold) {
@@ -177,30 +189,64 @@ function buildTree(files: TrackedFile[]): TreeNode {
   return root;
 }
 
-/** 目录在前、文件在后，各自按路径排序；叶子始终输出完整 sharedPath，方便整条复制认领 */
+/** 目录在前、文件在后，各自按路径排序；目录行可勾选（子树全部认领即打勾），叶子始终输出完整 sharedPath */
 function renderTree(
   node: TreeNode,
   depth: number,
+  dirPath: string,
   lines: string[],
   claimsByFile: Map<string, Claim>,
+  options: RenderOptions,
 ): void {
   const pad = '  '.repeat(depth);
   const dirs = [...node.dirs.values()].sort((a, b) => a.name.localeCompare(b.name));
   const files = [...node.files].sort((a, b) => a.sharedPath.localeCompare(b.sharedPath));
   for (const dir of dirs) {
-    lines.push(`${pad}- \`${dir.name}/\``);
-    renderTree(dir, depth + 1, lines, claimsByFile);
+    const subtree = collectFiles(dir);
+    const allClaimed = subtree.every((file) =>
+      claimsByFile.has(fileKey(file.locale, file.sharedPath)),
+    );
+    const full = dirPath ? `${dirPath}/${dir.name}` : dir.name;
+    const label = options.repoUrl
+      ? `[\`${dir.name}/\`](${options.repoUrl}/tree/${options.branch ?? 'main'}/${full})`
+      : `\`${dir.name}/\``;
+    lines.push(`${pad}- [${allClaimed ? 'x' : ' '}] ${label}`);
+    renderTree(dir, depth + 1, full, lines, claimsByFile, options);
   }
   for (const file of files) {
-    lines.push(`${pad}${renderFileLine(file, claimsByFile)}`);
+    lines.push(`${pad}${renderFileLine(file, claimsByFile, options)}`);
   }
 }
 
-function renderFileLine(file: TrackedFile, claimsByFile: Map<string, Claim>): string {
+function collectFiles(node: TreeNode): TrackedFile[] {
+  return [...node.files, ...[...node.dirs.values()].flatMap(collectFiles)];
+}
+
+function renderFileLine(
+  file: TrackedFile,
+  claimsByFile: Map<string, Claim>,
+  options: RenderOptions,
+): string {
   const claim = claimsByFile.get(fileKey(file.locale, file.sharedPath));
   const checked = claim ? 'x' : ' ';
-  const owner = claim
-    ? ` — @${claim.user} · ${claim.claimedAt.slice(0, 10)}${claim.prUrl ? ` · [PR](${claim.prUrl})` : ''}`
-    : '';
-  return `- [${checked}] \`${file.sharedPath}\`${STATUS_BADGE[file.status]}${owner}`;
+  const repoUrl = options.repoUrl ?? '';
+  const branch = options.branch ?? 'main';
+  const actionUrl =
+    repoUrl && file.localizationPath
+      ? file.status === 'missing'
+        ? `${repoUrl}/new/${branch}/${file.localizationPath}`
+        : `${repoUrl}/edit/${branch}/${file.localizationPath}`
+      : '';
+  const pathText = actionUrl ? `[\`${file.sharedPath}\`](${actionUrl})` : `\`${file.sharedPath}\``;
+  let tail = '';
+  if (claim) {
+    tail = ` — @${claim.user} · ${claim.claimedAt.slice(0, 10)}${claim.prUrl ? ` · [PR](${claim.prUrl})` : ''}`;
+  } else {
+    const refs: string[] = [];
+    if (file.status === 'missing' && actionUrl) refs.push(`[Create file](${actionUrl})`);
+    if (repoUrl && file.sourceUrl) refs.push(`[source](${file.sourceUrl})`);
+    if (repoUrl && file.sourceHistoryUrl) refs.push(`[history](${file.sourceHistoryUrl})`);
+    if (refs.length > 0) tail = ` · ${refs.join(' · ')}`;
+  }
+  return `- [${checked}] ${pathText}${tail}`;
 }

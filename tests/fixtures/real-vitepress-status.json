@@ -3,7 +3,9 @@
     "sharedPath": "src/agreement.md",
     "sourceFile": {
       "path": "src/zh/agreement.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/agreement.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/agreement.md"
     },
     "localizations": {
       "en": {
@@ -24,7 +26,9 @@
     "sharedPath": "src/blog/[path].md",
     "sourceFile": {
       "path": "src/zh/blog/[path].md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/blog/[path].md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/blog/[path].md"
     },
     "localizations": {
       "en": {
@@ -45,7 +49,9 @@
     "sharedPath": "src/blog/index.md",
     "sourceFile": {
       "path": "src/zh/blog/index.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/blog/index.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/blog/index.md"
     },
     "localizations": {
       "en": {
@@ -66,7 +72,9 @@
     "sharedPath": "src/blog/posts/changelog-autotrack.md",
     "sourceFile": {
       "path": "src/zh/blog/posts/changelog-autotrack.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/blog/posts/changelog-autotrack.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/blog/posts/changelog-autotrack.md"
     },
     "localizations": {
       "en": {
@@ -81,7 +89,9 @@
     "sharedPath": "src/blog/posts/changelog-client.md",
     "sourceFile": {
       "path": "src/zh/blog/posts/changelog-client.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/blog/posts/changelog-client.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/blog/posts/changelog-client.md"
     },
     "localizations": {
       "en": {
@@ -99,7 +109,9 @@
     "sharedPath": "src/blog/posts/changelog-web.md",
     "sourceFile": {
       "path": "src/zh/blog/posts/changelog-web.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/blog/posts/changelog-web.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/blog/posts/changelog-web.md"
     },
     "localizations": {
       "en": {
@@ -117,7 +129,9 @@
     "sharedPath": "src/blog/posts/hotupdatelog-autotrack.md",
     "sourceFile": {
       "path": "src/zh/blog/posts/hotupdatelog-autotrack.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/blog/posts/hotupdatelog-autotrack.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/blog/posts/hotupdatelog-autotrack.md"
     },
     "localizations": {
       "en": {
@@ -132,7 +146,9 @@
     "sharedPath": "src/blog/posts/hotupdatelog-client.md",
     "sourceFile": {
       "path": "src/zh/blog/posts/hotupdatelog-client.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/blog/posts/hotupdatelog-client.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/blog/posts/hotupdatelog-client.md"
     },
     "localizations": {
       "en": {
@@ -150,7 +166,9 @@
     "sharedPath": "src/callback.md",
     "sourceFile": {
       "path": "src/zh/callback.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/callback.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/callback.md"
     },
     "localizations": {
       "en": {
@@ -171,7 +189,9 @@
     "sharedPath": "src/community.md",
     "sourceFile": {
       "path": "src/zh/community.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/community.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/community.md"
     },
     "localizations": {
       "en": {
@@ -192,7 +212,9 @@
     "sharedPath": "src/credits.md",
     "sourceFile": {
       "path": "src/zh/credits.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/credits.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/credits.md"
     },
     "localizations": {
       "en": {
@@ -213,7 +235,9 @@
     "sharedPath": "src/disclaimer.md",
     "sourceFile": {
       "path": "src/zh/disclaimer.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/disclaimer.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/disclaimer.md"
     },
     "localizations": {
       "en": {
@@ -234,7 +258,9 @@
     "sharedPath": "src/download-client.md",
     "sourceFile": {
       "path": "src/zh/download-client.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/download-client.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/download-client.md"
     },
     "localizations": {
       "en": {
@@ -255,7 +281,9 @@
     "sharedPath": "src/error.md",
     "sourceFile": {
       "path": "src/zh/error.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/error.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/error.md"
     },
     "localizations": {
       "en": {
@@ -276,7 +304,9 @@
     "sharedPath": "src/feedback.md",
     "sourceFile": {
       "path": "src/zh/feedback.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/feedback.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/feedback.md"
     },
     "localizations": {
       "en": {
@@ -297,7 +327,9 @@
     "sharedPath": "src/friends-links.md",
     "sourceFile": {
       "path": "src/zh/friends-links.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/friends-links.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/friends-links.md"
     },
     "localizations": {
       "en": {
@@ -318,7 +350,9 @@
     "sharedPath": "src/index.md",
     "sourceFile": {
       "path": "src/zh/index.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/index.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/index.md"
     },
     "localizations": {
       "en": {
@@ -339,7 +373,9 @@
     "sharedPath": "src/join.md",
     "sourceFile": {
       "path": "src/zh/join.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/join.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/join.md"
     },
     "localizations": {
       "en": {
@@ -360,7 +396,9 @@
     "sharedPath": "src/manual/client/batch-selection.md",
     "sourceFile": {
       "path": "src/zh/manual/client/batch-selection.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/client/batch-selection.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/client/batch-selection.md"
     },
     "localizations": {
       "en": {
@@ -381,7 +419,9 @@
     "sharedPath": "src/manual/client/canvas.md",
     "sourceFile": {
       "path": "src/zh/manual/client/canvas.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/client/canvas.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/client/canvas.md"
     },
     "localizations": {
       "en": {
@@ -402,7 +442,9 @@
     "sharedPath": "src/manual/client/easter-egg.md",
     "sourceFile": {
       "path": "src/zh/manual/client/easter-egg.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/client/easter-egg.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/client/easter-egg.md"
     },
     "localizations": {
       "en": {
@@ -423,7 +465,9 @@
     "sharedPath": "src/manual/client/framerate.md",
     "sourceFile": {
       "path": "src/zh/manual/client/framerate.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/client/framerate.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/client/framerate.md"
     },
     "localizations": {
       "en": {
@@ -444,7 +488,9 @@
     "sharedPath": "src/manual/client/fullscreen-windowed.md",
     "sourceFile": {
       "path": "src/zh/manual/client/fullscreen-windowed.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/client/fullscreen-windowed.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/client/fullscreen-windowed.md"
     },
     "localizations": {
       "en": {
@@ -465,7 +511,9 @@
     "sharedPath": "src/manual/client/hide-show-done.md",
     "sourceFile": {
       "path": "src/zh/manual/client/hide-show-done.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/client/hide-show-done.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/client/hide-show-done.md"
     },
     "localizations": {
       "en": {
@@ -486,7 +534,9 @@
     "sharedPath": "src/manual/client/index.md",
     "sourceFile": {
       "path": "src/zh/manual/client/index.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/client/index.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/client/index.md"
     },
     "localizations": {
       "en": {
@@ -507,7 +557,9 @@
     "sharedPath": "src/manual/client/overlay-mode.md",
     "sourceFile": {
       "path": "src/zh/manual/client/overlay-mode.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/client/overlay-mode.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/client/overlay-mode.md"
     },
     "localizations": {
       "en": {
@@ -528,7 +580,9 @@
     "sharedPath": "src/manual/client/position-tracking.md",
     "sourceFile": {
       "path": "src/zh/manual/client/position-tracking.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/client/position-tracking.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/client/position-tracking.md"
     },
     "localizations": {
       "en": {
@@ -549,7 +603,9 @@
     "sharedPath": "src/manual/client/save-restore.md",
     "sourceFile": {
       "path": "src/zh/manual/client/save-restore.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/client/save-restore.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/client/save-restore.md"
     },
     "localizations": {
       "en": {
@@ -570,7 +626,9 @@
     "sharedPath": "src/manual/faq/accountsafety/acntban.md",
     "sourceFile": {
       "path": "src/zh/manual/faq/accountsafety/acntban.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/faq/accountsafety/acntban.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/faq/accountsafety/acntban.md"
     },
     "localizations": {
       "en": {
@@ -591,7 +649,9 @@
     "sharedPath": "src/manual/faq/autoupdate/updater.md",
     "sourceFile": {
       "path": "src/zh/manual/faq/autoupdate/updater.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/faq/autoupdate/updater.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/faq/autoupdate/updater.md"
     },
     "localizations": {
       "en": {
@@ -612,7 +672,9 @@
     "sharedPath": "src/manual/faq/cloudsave/verificationissueforoverseasuser.md",
     "sourceFile": {
       "path": "src/zh/manual/faq/cloudsave/verificationissueforoverseasuser.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/faq/cloudsave/verificationissueforoverseasuser.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/faq/cloudsave/verificationissueforoverseasuser.md"
     },
     "localizations": {
       "en": {
@@ -630,7 +692,9 @@
     "sharedPath": "src/manual/faq/instlerror/code2503.md",
     "sourceFile": {
       "path": "src/zh/manual/faq/instlerror/code2503.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/faq/instlerror/code2503.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/faq/instlerror/code2503.md"
     },
     "localizations": {
       "en": {
@@ -651,7 +715,9 @@
     "sharedPath": "src/manual/faq/instlerror/missingdll.md",
     "sourceFile": {
       "path": "src/zh/manual/faq/instlerror/missingdll.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/faq/instlerror/missingdll.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/faq/instlerror/missingdll.md"
     },
     "localizations": {
       "en": {
@@ -672,7 +738,9 @@
     "sharedPath": "src/manual/faq/launcherror/emptydialog.md",
     "sourceFile": {
       "path": "src/zh/manual/faq/launcherror/emptydialog.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/faq/launcherror/emptydialog.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/faq/launcherror/emptydialog.md"
     },
     "localizations": {
       "en": {
@@ -693,7 +761,9 @@
     "sharedPath": "src/manual/faq/launcherror/versioncheck.md",
     "sourceFile": {
       "path": "src/zh/manual/faq/launcherror/versioncheck.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/faq/launcherror/versioncheck.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/faq/launcherror/versioncheck.md"
     },
     "localizations": {
       "en": {
@@ -714,7 +784,9 @@
     "sharedPath": "src/manual/faq/login/accountlogin.md",
     "sourceFile": {
       "path": "src/zh/manual/faq/login/accountlogin.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/faq/login/accountlogin.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/faq/login/accountlogin.md"
     },
     "localizations": {
       "en": {
@@ -735,7 +807,9 @@
     "sharedPath": "src/manual/faq/login/clientrepeatedly.md",
     "sourceFile": {
       "path": "src/zh/manual/faq/login/clientrepeatedly.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/manual/faq/login/clientrepeatedly.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/manual/faq/login/clientrepeatedly.md"
     },
     "localizations": {
       "en": {
@@ -756,7 +830,9 @@
     "sharedPath": "src/privacy.md",
     "sourceFile": {
       "path": "src/zh/privacy.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/privacy.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/privacy.md"
     },
     "localizations": {
       "en": {
@@ -777,7 +853,9 @@
     "sharedPath": "src/sitemap.md",
     "sourceFile": {
       "path": "src/zh/sitemap.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/sitemap.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/sitemap.md"
     },
     "localizations": {
       "en": {
@@ -798,7 +876,9 @@
     "sharedPath": "src/support-us.md",
     "sourceFile": {
       "path": "src/zh/support-us.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/support-us.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/support-us.md"
     },
     "localizations": {
       "en": {
@@ -819,7 +899,9 @@
     "sharedPath": "src/translations.md",
     "sourceFile": {
       "path": "src/zh/translations.md",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/src/zh/translations.md",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/src/zh/translations.md"
     },
     "localizations": {
       "en": {
@@ -840,7 +922,9 @@
     "sharedPath": ".vitepress/locales/inferred-types.ts",
     "sourceFile": {
       "path": ".vitepress/locales/inferred-types.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/inferred-types.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/inferred-types.ts"
     },
     "localizations": {
       "en": {
@@ -855,7 +939,9 @@
     "sharedPath": ".vitepress/locales/json-types.ts",
     "sourceFile": {
       "path": ".vitepress/locales/json-types.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/json-types.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/json-types.ts"
     },
     "localizations": {
       "en": {
@@ -870,7 +956,9 @@
     "sharedPath": ".vitepress/locales/utils/regexConverter.ts",
     "sourceFile": {
       "path": ".vitepress/locales/utils/regexConverter.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/utils/regexConverter.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/utils/regexConverter.ts"
     },
     "localizations": {
       "en": {
@@ -885,7 +973,9 @@
     "sharedPath": ".vitepress/locales/404.ts",
     "sourceFile": {
       "path": ".vitepress/locales/zh/404.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/zh/404.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/zh/404.ts"
     },
     "localizations": {
       "en": {
@@ -906,7 +996,9 @@
     "sharedPath": ".vitepress/locales/aside-links.ts",
     "sourceFile": {
       "path": ".vitepress/locales/zh/aside-links.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/zh/aside-links.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/zh/aside-links.ts"
     },
     "localizations": {
       "en": {
@@ -927,7 +1019,9 @@
     "sharedPath": ".vitepress/locales/changelog.ts",
     "sourceFile": {
       "path": ".vitepress/locales/zh/changelog.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/zh/changelog.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/zh/changelog.ts"
     },
     "localizations": {
       "en": {
@@ -948,7 +1042,9 @@
     "sharedPath": ".vitepress/locales/constants.ts",
     "sourceFile": {
       "path": ".vitepress/locales/zh/constants.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/zh/constants.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/zh/constants.ts"
     },
     "localizations": {
       "en": {
@@ -969,7 +1065,9 @@
     "sharedPath": ".vitepress/locales/docs-feedback.ts",
     "sourceFile": {
       "path": ".vitepress/locales/zh/docs-feedback.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/zh/docs-feedback.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/zh/docs-feedback.ts"
     },
     "localizations": {
       "en": {
@@ -987,7 +1085,9 @@
     "sharedPath": ".vitepress/locales/footer.ts",
     "sourceFile": {
       "path": ".vitepress/locales/zh/footer.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/zh/footer.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/zh/footer.ts"
     },
     "localizations": {
       "en": {
@@ -1008,7 +1108,9 @@
     "sharedPath": ".vitepress/locales/forum.ts",
     "sourceFile": {
       "path": ".vitepress/locales/zh/forum.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/zh/forum.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/zh/forum.ts"
     },
     "localizations": {
       "en": {
@@ -1029,7 +1131,9 @@
     "sharedPath": ".vitepress/locales/head.ts",
     "sourceFile": {
       "path": ".vitepress/locales/zh/head.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/zh/head.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/zh/head.ts"
     },
     "localizations": {
       "en": {
@@ -1050,7 +1154,9 @@
     "sharedPath": ".vitepress/locales/index.ts",
     "sourceFile": {
       "path": ".vitepress/locales/zh/index.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/zh/index.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/zh/index.ts"
     },
     "localizations": {
       "en": {
@@ -1071,7 +1177,9 @@
     "sharedPath": ".vitepress/locales/nav.ts",
     "sourceFile": {
       "path": ".vitepress/locales/zh/nav.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/zh/nav.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/zh/nav.ts"
     },
     "localizations": {
       "en": {
@@ -1092,7 +1200,9 @@
     "sharedPath": ".vitepress/locales/payment.ts",
     "sourceFile": {
       "path": ".vitepress/locales/zh/payment.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/zh/payment.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/zh/payment.ts"
     },
     "localizations": {
       "en": {
@@ -1113,7 +1223,9 @@
     "sharedPath": ".vitepress/locales/sidebar.ts",
     "sourceFile": {
       "path": ".vitepress/locales/zh/sidebar.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/zh/sidebar.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/zh/sidebar.ts"
     },
     "localizations": {
       "en": {
@@ -1134,7 +1246,9 @@
     "sharedPath": ".vitepress/locales/staff.ts",
     "sourceFile": {
       "path": ".vitepress/locales/zh/staff.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/zh/staff.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/zh/staff.ts"
     },
     "localizations": {
       "en": {
@@ -1155,7 +1269,9 @@
     "sharedPath": ".vitepress/locales/team.ts",
     "sourceFile": {
       "path": ".vitepress/locales/zh/team.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/zh/team.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/zh/team.ts"
     },
     "localizations": {
       "en": {
@@ -1176,7 +1292,9 @@
     "sharedPath": ".vitepress/locales/types.ts",
     "sourceFile": {
       "path": ".vitepress/locales/zh/types.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/zh/types.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/zh/types.ts"
     },
     "localizations": {
       "en": {
@@ -1191,7 +1309,9 @@
     "sharedPath": ".vitepress/locales/ui.ts",
     "sourceFile": {
       "path": ".vitepress/locales/zh/ui.ts",
-      "lang": "zh"
+      "lang": "zh",
+      "gitHostingFileURL": "https://github.com/kongying-tavern/docs/blob/main/.vitepress/locales/zh/ui.ts",
+      "gitHostingHistoryURL": "https://github.com/kongying-tavern/docs/commits/main/.vitepress/locales/zh/ui.ts"
     },
     "localizations": {
       "en": {

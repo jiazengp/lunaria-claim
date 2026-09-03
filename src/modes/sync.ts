@@ -46,7 +46,7 @@ export async function runSync(ctx: ModeContext): Promise<void> {
   const releasedByView = applyViewEdits(current, baseBody, ctx.now);
   const { state, sections, changed } = reconcile(current, desiredFiles, ctx.now);
   const rendered = applyPlaceholders(
-    renderBody(baseBody, sections, state, renderOptions(ctx.config)),
+    renderBody(baseBody, sections, state, renderOptions(ctx.config, ctx.repo, state.files)),
     {
       ttl_days: String(ctx.config.ttlDays),
       dashboard_url: ctx.config.dashboardUrl ?? '',

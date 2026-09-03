@@ -32,12 +32,13 @@ const options = { collapseThreshold: 30, fileListStyle: 'tree' as const };
 describe('renderBody', () => {
   it('renders a nested directory tree for the global {{files}} placeholder', () => {
     const body = renderBody(template, groupByLocale(files), state, options);
-    expect(body).toContain('- `.vitepress/`');
+    expect(body).toContain('- [ ] `.vitepress/`');
     expect(body).toContain('  - [ ] `.vitepress/theme.ts`');
-    expect(body).toContain('- `src/`');
-    expect(body).toContain('  - `manual/`');
-    expect(body).toContain('    - `client/`');
+    expect(body).toContain('- [ ] `src/`');
+    expect(body).toContain('  - [ ] `manual/`');
+    expect(body).toContain('    - [x] `client/`');
     expect(body).toContain('      - [x] `src/manual/client/canvas.md` — @alice · 2026-09-01');
+    expect(body).toContain('    - [ ] `faq/`');
     expect(body).toContain('  - [ ] `src/index.md`');
   });
 
@@ -46,7 +47,7 @@ describe('renderBody', () => {
       collapseThreshold: 30,
       fileListStyle: 'flat',
     });
-    expect(body).not.toContain('- `.vitepress/`\n');
+    expect(body).not.toContain('- [ ] `.vitepress/`');
     expect(body).toContain('- [ ] `.vitepress/theme.ts`');
     expect(body).toContain('- [ ] `src/index.md`');
   });
@@ -163,5 +164,73 @@ describe('parseViewCheckboxes edges', () => {
       { locale: 'ja', sharedPath: 'src/deep/b.md', checked: true },
       { locale: 'ja', sharedPath: 'src/root.md', checked: false },
     ]);
+  });
+});
+
+describe('renderBody links', () => {
+  const linkedFiles = [
+    {
+      sharedPath: 'src/missing.md',
+      locale: 'ja',
+      status: 'missing' as const,
+      localizationPath: 'src/ja/missing.md',
+      sourceUrl: 'https://github.com/o/r/blob/main/src/zh/missing.md',
+      sourceHistoryUrl: 'https://github.com/o/r/commits/main/src/zh/missing.md',
+    },
+    {
+      sharedPath: 'src/stale.md',
+      locale: 'ja',
+      status: 'outdated' as const,
+      localizationPath: 'src/ja/stale.md',
+      sourceUrl: 'https://github.com/o/r/blob/main/src/zh/stale.md',
+      sourceHistoryUrl: 'https://github.com/o/r/commits/main/src/zh/stale.md',
+    },
+  ];
+  const linkedOptions = {
+    collapseThreshold: 30,
+    fileListStyle: 'flat' as const,
+    repoUrl: 'https://github.com/o/r',
+    branch: 'main',
+  };
+
+  it('links unclaimed files to source and history, with a Create file link for missing ones', () => {
+    const body = renderBody(
+      `${STATE}\n\n{{files}}`,
+      groupByLocale(linkedFiles),
+      { version: 1, files: linkedFiles, claims: [] },
+      linkedOptions,
+    );
+    expect(body).toContain('[`src/missing.md`](https://github.com/o/r/new/main/src/ja/missing.md)');
+    expect(body).toContain('[Create file](https://github.com/o/r/new/main/src/ja/missing.md)');
+    expect(body).toContain('[`src/stale.md`](https://github.com/o/r/edit/main/src/ja/stale.md)');
+    expect(body).toContain('[source](https://github.com/o/r/blob/main/src/zh/missing.md)');
+    expect(body).toContain('[history](https://github.com/o/r/commits/main/src/zh/missing.md)');
+    expect(body).not.toContain('Create file)`');
+  });
+
+  it('keeps claimed lines compact but path still clickable', () => {
+    const body = renderBody(
+      `${STATE}\n\n{{files}}`,
+      groupByLocale(linkedFiles),
+      {
+        version: 1,
+        files: linkedFiles,
+        claims: [
+          {
+            path: 'src/missing.md',
+            locale: 'ja',
+            user: 'alice',
+            claimedAt: '2026-09-01T00:00:00Z',
+            commentId: 1,
+            commentUrl: 'https://example.com/1',
+          },
+        ],
+      },
+      linkedOptions,
+    );
+    expect(body).toContain(
+      '[`src/missing.md`](https://github.com/o/r/new/main/src/ja/missing.md) — @alice · 2026-09-01',
+    );
+    expect(body).not.toContain('[source](https://github.com/o/r/blob/main/src/zh/missing.md)');
   });
 });

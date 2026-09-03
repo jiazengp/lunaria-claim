@@ -112,7 +112,7 @@ export async function runClaim(ctx: ModeContext): Promise<void> {
       issue.body,
       groupByLocale(state.files),
       state,
-      renderOptions(ctx.config),
+      renderOptions(ctx.config, ctx.repo, state.files),
     );
     await ctx.api.updateIssueBody(issue.number, updated);
   }

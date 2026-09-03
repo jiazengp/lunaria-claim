@@ -16,9 +16,9 @@
 ```markdown
 ### 🌐 ja
 
-- `manual/`
-  - [x] `src/manual/canvas.md` — @alice · 2026-09-01
-- [ ] `src/guide.md` — @bob · 2026-09-02 · [PR](https://github.com/your-org/your-docs/pull/42)
+- [ ] [`manual/`](https://github.com/your-org/your-docs/tree/main/src/manual)
+  - [x] [`src/manual/canvas.md`](https://github.com/your-org/your-docs/edit/main/src/ja/manual/canvas.md) — @alice · 2026-09-01
+- [ ] [`src/guide.md`](https://github.com/your-org/your-docs/new/main/src/ja/guide.md) · [source](https://github.com/your-org/your-docs/blob/main/src/zh/guide.md) · [history](https://github.com/your-org/your-docs/commits/main/src/zh/guide.md)
 ```
 
 认领状态存在 issue body 的 HTML 注释状态块里，不依赖事件顺序：
@@ -121,7 +121,8 @@ src/index.md 我来认领           # 宽松模式：清单中的完整路径 + 
 - **提交 PR**：PR 作者与变更文件匹配到活跃认领时自动关联，清单追加 PR 链接，过期计时冻结。
 - **PR 关闭未合并**：自动释放认领并回复提醒。
 - **超期**：认领后 `ttlDays` 天内无关联 PR，自动释放，并在你认领的那条评论下提醒。
-- **手动编辑兼容（单向）**：管理员在 issue 正文里取消勾选某个已认领文件（或删掉那一行），bot 下次更新时会把它当作手动释放——去掉后面的 @引用、日期和 PR 链接，恢复未认领；标记区与占位符之外的手写内容不会被覆盖。**反向不存在**：手动勾选一个未认领文件不会被当成认领（状态块里没有认领人信息可补，bot 下次渲染会画回未认领）。
+- **手动编辑兼容（单向）**：管理员在 issue 正文里取消勾选某个已认领文件（或删掉那一行），bot 下次更新时会把它当作手动释放——去掉后面的 @引用、日期和 PR 链接，恢复未认领；**取消勾选目录行 = 释放该目录下全部认领**；标记区与占位符之外的手写内容不会被覆盖。**反向不存在**：手动勾选未认领文件不会被当成认领（状态块里没有认领人信息可补，bot 下次渲染会画回未认领）。
+- **清单行格式**：文件路径本身可点击——未翻译的 `missing` 指向「Create file」页、过期的是编辑页，后接 `[source]`（原文链接）与 `[history]`（原文变更历史）；目录行为仓库目录链接，子树全部认领时打勾。已认领的行保持简洁（只保留路径、@认领人、日期与 PR）。
 
 ## 配置参考
 

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,7 +34,9 @@ try {
     throw new Error(`runner smoke failed: external dependency unresolved\n${output}`);
   }
   if (!output.includes('Input required and not supplied: mode')) {
-    throw new Error(`runner smoke failed: expected input validation error, got exit=${code}\n${output}`);
+    throw new Error(
+      `runner smoke failed: expected input validation error, got exit=${code}\n${output}`,
+    );
   }
   console.log(`runner smoke ok: self-contained under a bare runner (expected exit ${code})`);
 } finally {

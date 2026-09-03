@@ -470,3 +470,22 @@ describe('rebuildClaimsFromComments directory release', () => {
     expect(claims).toEqual([]);
   });
 });
+
+describe('applyViewEdits directory line', () => {
+  it('releases every claim under an unchecked directory', () => {
+    const state: TrackerState = {
+      version: 1,
+      files: [],
+      claims: [
+        { ...makeClaim(), path: 'src/manual/a.md' },
+        { ...makeClaim(), path: 'src/manual/b.md' },
+        { ...makeClaim(), path: 'src/other.md' },
+      ],
+    };
+    const body =
+      '### 🌐 ja\n\n- [ ] `src/manual/`\n- [x] `src/manual/a.md`\n- [x] `src/manual/b.md`\n- [x] `src/other.md`';
+    expect(applyViewEdits(state, body, new Date('2026-09-02T00:00:00Z'))).toBe(2);
+    expect(state.claims.filter((claim) => claim.releaseReason === 'manual')).toHaveLength(2);
+    expect(state.claims[2]?.releaseReason).toBeUndefined();
+  });
+});

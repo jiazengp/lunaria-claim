@@ -4,7 +4,12 @@ import type { TrackedFile } from './model.js';
 /** lunaria status.json 的最小类型面，只声明我们消费的字段 */
 export interface LunariaStatusItem {
   sharedPath: string;
-  sourceFile: { path: string; lang: string };
+  sourceFile: {
+    path: string;
+    lang: string;
+    gitHostingFileURL?: string;
+    gitHostingHistoryURL?: string;
+  };
   localizations: Record<string, { isMissing: boolean; isOutdated?: boolean; path?: string }>;
 }
 
@@ -15,7 +20,10 @@ export function readLunariaStatus(path: string): LunariaStatusItem[] {
 /** done 不进认领清单：翻译完成与否完全以 Lunaria 为准，由 sync 对账移出 */
 export function toTrackedFiles(status: LunariaStatusItem[], locales: string[]): TrackedFile[] {
   const files: TrackedFile[] = [];
+  const toUrl = (url: string | undefined): string | undefined => url?.replace(/\\/g, '/');
   for (const item of status) {
+    const sourceUrl = toUrl(item.sourceFile.gitHostingFileURL);
+    const sourceHistoryUrl = toUrl(item.sourceFile.gitHostingHistoryURL);
     for (const locale of locales) {
       const loc = item.localizations[locale];
       if (!loc) continue;
@@ -25,9 +33,23 @@ export function toTrackedFiles(status: LunariaStatusItem[], locales: string[]): 
         : undefined;
       const localizationPath = !loc.isMissing && loc.path ? loc.path : derived;
       if (loc.isMissing) {
-        files.push({ sharedPath: item.sharedPath, locale, status: 'missing', localizationPath });
+        files.push({
+          sharedPath: item.sharedPath,
+          locale,
+          status: 'missing',
+          localizationPath,
+          sourceUrl,
+          sourceHistoryUrl,
+        });
       } else if (loc.isOutdated) {
-        files.push({ sharedPath: item.sharedPath, locale, status: 'outdated', localizationPath });
+        files.push({
+          sharedPath: item.sharedPath,
+          locale,
+          status: 'outdated',
+          localizationPath,
+          sourceUrl,
+          sourceHistoryUrl,
+        });
       }
     }
   }
