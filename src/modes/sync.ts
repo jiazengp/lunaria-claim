@@ -45,9 +45,7 @@ export async function runSync(ctx: ModeContext): Promise<void> {
   }
 
   const releasedByView = applyViewEdits(current, baseBody, ctx.now);
-  const { state, changed } = reconcile(current, claimable, ctx.now);
-  // 渲染与持久化包含已完成翻译的行（done 只展示打勾，不可认领）
-  state.files = desiredFiles;
+  const { state, changed } = reconcile(current, desiredFiles, ctx.now);
   const sections = groupByLocale(state.files);
   const rendered = recomposeBody(
     baseBody,

@@ -54120,7 +54120,8 @@ function toTrackedFiles(status, locales) {
 //#region src/reconcile.ts
 /** sync 对账：以 lunaria status.json 派生的清单为准收敛 files 与 claims */
 function reconcile(current, desiredFiles, now) {
-	const desiredKeys = new Set(desiredFiles.map((file) => fileKey(file.locale, file.sharedPath)));
+	const claimable = desiredFiles.filter((file) => file.status !== "done");
+	const desiredKeys = new Set(claimable.map((file) => fileKey(file.locale, file.sharedPath)));
 	const claims = current.claims.map((claim) => {
 		if (claim.releasedAt || desiredKeys.has(fileKey(claim.locale, claim.path))) return claim;
 		return {
@@ -54178,8 +54179,7 @@ async function runSync(ctx) {
 		}
 	}
 	const releasedByView = applyViewEdits(current, baseBody, ctx.now);
-	const { state, changed } = reconcile(current, claimable, ctx.now);
-	state.files = desiredFiles;
+	const { state, changed } = reconcile(current, desiredFiles, ctx.now);
 	const sections = groupByLocale(state.files);
 	const rendered = recomposeBody(baseBody, template, sections, state, {
 		ttl_days: String(ctx.config.ttlDays),

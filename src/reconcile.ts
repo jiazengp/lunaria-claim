@@ -19,7 +19,10 @@ export function reconcile(
   desiredFiles: TrackedFile[],
   now: Date,
 ): ReconcileResult {
-  const desiredKeys = new Set(desiredFiles.map((file) => fileKey(file.locale, file.sharedPath)));
+  // done 只展示打勾、不可认领：认领保留判定要排除它们，
+  // 但 state.files 与 changed 必须基于完整清单，保证幂等
+  const claimable = desiredFiles.filter((file) => file.status !== 'done');
+  const desiredKeys = new Set(claimable.map((file) => fileKey(file.locale, file.sharedPath)));
   const claims = current.claims.map((claim): TrackerState['claims'][number] => {
     if (claim.releasedAt || desiredKeys.has(fileKey(claim.locale, claim.path))) {
       return claim;
