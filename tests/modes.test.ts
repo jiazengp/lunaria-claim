@@ -712,6 +712,33 @@ describe('mode orchestration (fake GitHubApi)', () => {
       expect(claims).toHaveLength(3);
       expect(claims.every((claim) => claim.user === 'alice' && claim.commentId === 0)).toBe(true);
     });
+
+    it('checking a mid-level directory row claims its own subtree only (plan 007)', async () => {
+      const api = new FakeApi();
+      await runSync(makeCtx(api));
+      const oldBody = api.issue?.body ?? '';
+      // `ja/` 行重建为 `src/ja/`：认领只落在 ja 子树，ko 不受影响
+      const newBody = oldBody.replace(/- \[ \] \[`ja\/`\]/, '- [x] [`ja/`]');
+      vi.stubEnv(
+        'GITHUB_EVENT_PATH',
+        writeEvent({
+          action: 'edited',
+          sender: { login: 'alice', type: 'User' },
+          issue: { number: 1, body: newBody },
+          changes: { body: { from: oldBody } },
+        }),
+      );
+      await runViewEdit(makeCtx(api, { mode: 'view-edit' }));
+      expect(api.updates).toBe(1);
+      const claims = parseState(api.issue?.body ?? '')?.claims ?? [];
+      // ja::index 与 ja::download-client 入账；ko::download-client 保持未认领
+      expect(claims).toHaveLength(2);
+      expect(
+        claims.every(
+          (claim) => claim.locale === 'ja' && claim.user === 'alice' && claim.commentId === 0,
+        ),
+      ).toBe(true);
+    });
   });
 
   describe('template policy', () => {

@@ -183,6 +183,39 @@ describe('parseViewCheckboxes edges', () => {
       { locale: 'ja', sharedPath: 'manual/', checked: false },
     ]);
   });
+
+  it('rebuilds nested dir rows into full paths from indentation (plan 007)', () => {
+    const body = `- [ ] \`src/\`
+  - [ ] \`ja/\`
+    - [x] \`src/ja/a.md\`
+  - [ ] \`ko/\`
+    - [ ] \`src/ko/b.md\``;
+    expect(parseViewCheckboxes(body)).toEqual([
+      { locale: '', sharedPath: 'src/', checked: false },
+      { locale: '', sharedPath: 'src/ja/', checked: false },
+      { locale: '', sharedPath: 'src/ja/a.md', checked: true },
+      { locale: '', sharedPath: 'src/ko/', checked: false },
+      { locale: '', sharedPath: 'src/ko/b.md', checked: false },
+    ]);
+  });
+
+  it('resets the dir stack on a new locale heading (sections are independent trees)', () => {
+    const body = `### 🌐 ja
+
+- [ ] \`src/\`
+  - [ ] \`ja/\`
+
+### 🌐 en
+
+- [ ] \`source/\`
+  - [ ] \`en/\``;
+    expect(parseViewCheckboxes(body)).toEqual([
+      { locale: 'ja', sharedPath: 'src/', checked: false },
+      { locale: 'ja', sharedPath: 'src/ja/', checked: false },
+      { locale: 'en', sharedPath: 'source/', checked: false },
+      { locale: 'en', sharedPath: 'source/en/', checked: false },
+    ]);
+  });
 });
 
 describe('renderBody links', () => {

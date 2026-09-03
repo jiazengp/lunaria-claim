@@ -617,6 +617,36 @@ describe('applyViewEdits directory line', () => {
     expect(applyViewEdits(state, body, new Date('2026-09-02T00:00:00Z'))).toBe(0);
     expect(state.claims[0]?.releaseReason).toBeUndefined();
   });
+
+  it('a nested dir row (full path rebuilt from indentation) releases its subtree claim (plan 007)', () => {
+    const state: TrackerState = {
+      version: 1,
+      files: [
+        {
+          sharedPath: 'src/ja/a.md',
+          locale: 'ja',
+          status: 'missing',
+          localizationPath: 'src/ja/a.md',
+        },
+        {
+          sharedPath: 'src/ko/b.md',
+          locale: 'ko',
+          status: 'missing',
+          localizationPath: 'src/ko/b.md',
+        },
+      ],
+      claims: [{ ...makeClaim(), path: 'src/ja/a.md' }],
+    };
+    const body = `- [ ] \`src/\`
+  - [ ] \`ja/\`
+    - [x] \`src/ja/a.md\`
+  - [ ] \`ko/\`
+    - [ ] \`src/ko/b.md\``;
+    // `ja/` 行重建为 `src/ja/`：子树全认领 → 取消勾选释放 ja 认领；
+    // `src/` 行的子树含未认领的 ko 文件（未全认领）→ 忽略；`src/ko/` 无认领 → 忽略
+    expect(applyViewEdits(state, body, new Date('2026-09-02T00:00:00Z'))).toBe(1);
+    expect(state.claims[0]).toMatchObject({ releaseReason: 'manual' });
+  });
 });
 
 describe('applyViewEdits heading-less template', () => {
