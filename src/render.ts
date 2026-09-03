@@ -2,6 +2,8 @@ import type { FileListStyle } from './config.js';
 import {
   activeClaims,
   type Claim,
+  FILES_CLOSE,
+  FILES_OPEN,
   fileKey,
   type LocaleSection,
   STATE_CLOSE,
@@ -14,6 +16,11 @@ import { escapeRegExp } from './utils.js';
 
 const STATE_REGION_RE = new RegExp(
   `${escapeRegExp(STATE_OPEN)}\\n[\\s\\S]*?\\n${escapeRegExp(STATE_CLOSE)}`,
+);
+
+/** 默认模板的 FILES 标记区（含标记行整体） */
+const FILES_REGION_RE = new RegExp(
+  `${escapeRegExp(FILES_OPEN)}[\\s\\S]*?${escapeRegExp(FILES_CLOSE)}`,
 );
 
 /** {{files}} 或 {{files_<lang>}}，lang 为 lunaria 配置里的语言代码（如 ja、zh-CN） */
@@ -104,12 +111,6 @@ export function renderBody(
   if (!STATE_REGION_RE.test(body)) {
     throw new Error('body is missing the LUNARIA-CLAIM:STATE markers');
   }
-  if (!hasOutsideComments(body, FILES_PLACEHOLDER_RE)) {
-    throw new Error(
-      'body is missing {{files}} or a {{files_<lang>}} placeholder ' +
-        '(placeholders inside HTML comments are examples, never expanded)',
-    );
-  }
   const claimsByFile = new Map(
     activeClaims(state).map((claim) => [fileKey(claim.locale, claim.path), claim]),
   );
@@ -120,11 +121,43 @@ export function renderBody(
     .filter((section) => section.files.length > 0)
     .map((section) => byLocale.get(section.locale) ?? '')
     .join('\n\n');
+  if (!hasOutsideComments(body, FILES_PLACEHOLDER_RE)) {
+    // 已渲染的正文（占位符已被消费）：原位覆盖 FILES 标记区与 STATE 区，保留标记区外的手写内容
+    if (!FILES_REGION_RE.test(body)) {
+      throw new Error(
+        'body is missing {{files}} or a {{files_<lang>}} placeholder ' +
+          '(placeholders inside HTML comments are examples, never expanded)',
+      );
+    }
+    const overlay = `${FILES_OPEN}\n${all}\n\n${serializeState(state)}\n${FILES_CLOSE}`;
+    return body
+      .replace(FILES_REGION_RE, () => overlay)
+      .replace(STATE_REGION_RE, () => serializeState(state));
+  }
   return replaceOutsideHtmlComments(body, FILES_PLACEHOLDER_RE, (match, locale?: string) => {
     if (!locale) return all;
     // 该语言暂无待翻译文件或语言代码拼错时，占位符原样保留，便于发现
     return byLocale.get(locale) ?? match;
   }).replace(STATE_REGION_RE, () => serializeState(state));
+}
+
+/**
+ * 更新已有 issue 的统一入口：优先在原正文上原位覆盖（保留用户手写内容）；
+ * 正文已不可用（无占位符也无标记区，如多占位符模板）时回退到按模板整体重建。
+ */
+export function recomposeBody(
+  body: string,
+  template: string,
+  sections: LocaleSection[],
+  state: TrackerState,
+  vars: Record<string, string>,
+  options: RenderOptions,
+): string {
+  try {
+    return applyPlaceholders(renderBody(body, sections, state, options), vars);
+  } catch {
+    return applyPlaceholders(renderBody(template, sections, state, options), vars);
+  }
 }
 
 export interface ViewCheckbox {

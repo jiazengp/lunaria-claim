@@ -53375,6 +53375,8 @@ function message(config, key, vars = {}) {
 //#region src/model.ts
 const STATE_OPEN = "<!-- LUNARIA-CLAIM:STATE v1 -->";
 const STATE_CLOSE = "<!-- /LUNARIA-CLAIM:STATE -->";
+const FILES_OPEN = "<!-- LUNARIA-CLAIM:FILES -->";
+const FILES_CLOSE = "<!-- /LUNARIA-CLAIM:FILES -->";
 function fileKey(locale, sharedPath) {
 	return `${locale}::${sharedPath}`;
 }
@@ -53423,6 +53425,8 @@ function isTrackerState(value) {
 //#endregion
 //#region src/render.ts
 const STATE_REGION_RE = new RegExp(`${escapeRegExp(STATE_OPEN)}\\n[\\s\\S]*?\\n${escapeRegExp(STATE_CLOSE)}`);
+/** 默认模板的 FILES 标记区（含标记行整体） */
+const FILES_REGION_RE = new RegExp(`${escapeRegExp(FILES_OPEN)}[\\s\\S]*?${escapeRegExp(FILES_CLOSE)}`);
 /** {{files}} 或 {{files_<lang>}}，lang 为 lunaria 配置里的语言代码（如 ja、zh-CN） */
 const FILES_PLACEHOLDER_RE = /\{\{\s*files(?:_([A-Za-z0-9-]+))?\s*\}\}/g;
 function renderOptions(config, repo, files) {
@@ -53477,14 +53481,29 @@ function hasOutsideComments(source, pattern) {
 */
 function renderBody(body, sections, state, options) {
 	if (!STATE_REGION_RE.test(body)) throw new Error("body is missing the LUNARIA-CLAIM:STATE markers");
-	if (!hasOutsideComments(body, FILES_PLACEHOLDER_RE)) throw new Error("body is missing {{files}} or a {{files_<lang>}} placeholder (placeholders inside HTML comments are examples, never expanded)");
 	const claimsByFile = new Map(activeClaims(state).map((claim) => [fileKey(claim.locale, claim.path), claim]));
 	const byLocale = new Map(sections.map((section) => [section.locale, renderSection(section, claimsByFile, options)]));
 	const all = sections.filter((section) => section.files.length > 0).map((section) => byLocale.get(section.locale) ?? "").join("\n\n");
+	if (!hasOutsideComments(body, FILES_PLACEHOLDER_RE)) {
+		if (!FILES_REGION_RE.test(body)) throw new Error("body is missing {{files}} or a {{files_<lang>}} placeholder (placeholders inside HTML comments are examples, never expanded)");
+		const overlay = `${FILES_OPEN}\n${all}\n\n${serializeState(state)}\n${FILES_CLOSE}`;
+		return body.replace(FILES_REGION_RE, () => overlay).replace(STATE_REGION_RE, () => serializeState(state));
+	}
 	return replaceOutsideHtmlComments(body, FILES_PLACEHOLDER_RE, (match, locale) => {
 		if (!locale) return all;
 		return byLocale.get(locale) ?? match;
 	}).replace(STATE_REGION_RE, () => serializeState(state));
+}
+/**
+* 更新已有 issue 的统一入口：优先在原正文上原位覆盖（保留用户手写内容）；
+* 正文已不可用（无占位符也无标记区，如多占位符模板）时回退到按模板整体重建。
+*/
+function recomposeBody(body, template, sections, state, vars, options) {
+	try {
+		return applyPlaceholders(renderBody(body, sections, state, options), vars);
+	} catch {
+		return applyPlaceholders(renderBody(template, sections, state, options), vars);
+	}
 }
 /**
 * 从 body 的可见清单解析勾选状态（文件行与目录行都算）。
@@ -53901,7 +53920,10 @@ async function runClaim(ctx) {
 	}
 	const changed = before !== JSON.stringify(state.claims);
 	if (changed) {
-		const updated = renderBody(issue.body, groupByLocale(state.files), state, renderOptions(ctx.config, ctx.repo, state.files));
+		const updated = recomposeBody(issue.body, readFileSync(ctx.config.templatePath, "utf-8"), groupByLocale(state.files), state, {
+			ttl_days: String(ctx.config.ttlDays),
+			dashboard_url: ctx.config.dashboardUrl ?? ""
+		}, renderOptions(ctx.config, ctx.repo, state.files));
 		await ctx.api.updateIssueBody(issue.number, updated);
 	}
 	if (claimedAny) await ctx.api.reactToComment(event.comment.id, "rocket");
@@ -53956,7 +53978,10 @@ async function runExpire(ctx) {
 			ttlDays: String(ctx.config.ttlDays)
 		}));
 	}
-	const body = renderBody(issue.body, groupByLocale(state.files), state, renderOptions(ctx.config, ctx.repo, state.files));
+	const body = recomposeBody(issue.body, readFileSync(ctx.config.templatePath, "utf-8"), groupByLocale(state.files), state, {
+		ttl_days: String(ctx.config.ttlDays),
+		dashboard_url: ctx.config.dashboardUrl ?? ""
+	}, renderOptions(ctx.config, ctx.repo, state.files));
 	await ctx.api.updateIssueBody(issue.number, body);
 	info(`released ${expired.length} expired claim(s) on issue #${issue.number}`);
 	await writeStepSummary(`**⏰ Expiry sweep (issue #${issue.number})**
@@ -53996,7 +54021,10 @@ async function runLinkPr(ctx) {
 		info(`PR #${pr.number} does not match any active claim`);
 		return;
 	}
-	const updated = renderBody(issue.body, groupByLocale(state.files), state, renderOptions(ctx.config, ctx.repo, state.files));
+	const updated = recomposeBody(issue.body, readFileSync(ctx.config.templatePath, "utf-8"), groupByLocale(state.files), state, {
+		ttl_days: String(ctx.config.ttlDays),
+		dashboard_url: ctx.config.dashboardUrl ?? ""
+	}, renderOptions(ctx.config, ctx.repo, state.files));
 	await ctx.api.updateIssueBody(issue.number, updated);
 	info(`linked PR #${pr.number} to ${linked.length} claim(s), expiry frozen`);
 	await writeStepSummary(`**🔗 PR linked (PR #${pr.number})**
@@ -54018,7 +54046,10 @@ async function handleClosed(ctx, issueNumber, body, state, pr) {
 		info("no claims linked to this PR");
 		return;
 	}
-	const updated = renderBody(body, groupByLocale(state.files), state, renderOptions(ctx.config, ctx.repo, state.files));
+	const updated = recomposeBody(body, readFileSync(ctx.config.templatePath, "utf-8"), groupByLocale(state.files), state, {
+		ttl_days: String(ctx.config.ttlDays),
+		dashboard_url: ctx.config.dashboardUrl ?? ""
+	}, renderOptions(ctx.config, ctx.repo, state.files));
 	await ctx.api.updateIssueBody(issueNumber, updated);
 	await ctx.api.addComment(issueNumber, message(ctx.config, "pr_closed", {
 		user: pr.user.login,
@@ -54126,10 +54157,10 @@ async function runSync(ctx) {
 	const { state, changed } = reconcile(current, claimable, ctx.now);
 	state.files = desiredFiles;
 	const sections = groupByLocale(state.files);
-	const rendered = applyPlaceholders(renderBody(baseBody, sections, state, renderOptions(ctx.config, ctx.repo, state.files)), {
+	const rendered = recomposeBody(baseBody, template, sections, state, {
 		ttl_days: String(ctx.config.ttlDays),
 		dashboard_url: ctx.config.dashboardUrl ?? ""
-	});
+	}, renderOptions(ctx.config, ctx.repo, state.files));
 	if (dryRun) {
 		await writeSyncSummary(ctx, state, rendered, {
 			preview: true,

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { groupByLocale, type TrackerState } from '../src/model.js';
-import { applyPlaceholders, parseViewCheckboxes, renderBody } from '../src/render.js';
+import {
+  applyPlaceholders,
+  parseViewCheckboxes,
+  recomposeBody,
+  renderBody,
+} from '../src/render.js';
 
 const STATE = '<!-- LUNARIA-CLAIM:STATE v1 -->\n{}\n<!-- /LUNARIA-CLAIM:STATE -->';
 const template = `${STATE}\n\n<!-- LUNARIA-CLAIM:FILES -->\n{{files}}\n<!-- /LUNARIA-CLAIM:FILES -->`;
@@ -259,5 +264,61 @@ describe('done rows', () => {
       '- [x] [`src/done.md`](https://github.com/o/r/edit/main/src/ja/done.md)',
     );
     expect(body).not.toContain(' — @');
+  });
+});
+
+describe('rendered body updates (issue #2 regression)', () => {
+  const newFiles = [
+    { sharedPath: 'src/index.md', locale: 'ja', status: 'missing' as const },
+    { sharedPath: 'src/manual/canvas.md', locale: 'ja', status: 'missing' as const },
+  ];
+
+  it('overlays regions in place and preserves text outside the markers', () => {
+    const legacyState = { version: 1 as const, files: [], claims: [] };
+    const legacyBody = [
+      '手写头部',
+      '',
+      '<!-- LUNARIA-CLAIM:FILES -->',
+      '- [ ] `src/old.md`',
+      '',
+      '<!-- LUNARIA-CLAIM:STATE v1 -->',
+      '{"version":1,"files":[],"claims":[]}',
+      '<!-- /LUNARIA-CLAIM:STATE -->',
+      '<!-- /LUNARIA-CLAIM:FILES -->',
+      '',
+      '手写尾部',
+    ].join('\n');
+    const out = renderBody(
+      legacyBody,
+      groupByLocale(newFiles),
+      {
+        version: 1,
+        files: newFiles,
+        claims: [],
+      },
+      { collapseThreshold: 30, fileListStyle: 'flat' },
+    );
+    expect(out).toContain('手写头部');
+    expect(out).toContain('手写尾部');
+    expect(out).not.toContain('src/old.md');
+    expect(out).toContain('- [ ] `src/index.md`');
+    expect(out).toContain('- [ ] `src/manual/canvas.md`');
+    // 状态块换成了注释包裹的新格式
+    expect(out).toContain('<!-- LUNARIA-CLAIM:STATE v1 -->\n<!--\n');
+  });
+
+  it('recomposeBody falls back to the template when the body cannot be overlaid', () => {
+    const body = `${STATE}`; // 只有状态区，无占位符也无 FILES 标记
+    const template = `${STATE}\n\nmarker\n{{files}}\n/marker`;
+    const out = recomposeBody(
+      body,
+      template,
+      groupByLocale(newFiles),
+      { version: 1, files: newFiles, claims: [] },
+      { ttl_days: '15', dashboard_url: '' },
+      { collapseThreshold: 30, fileListStyle: 'flat' },
+    );
+    expect(out).toContain('marker');
+    expect(out).toContain('- [ ] `src/index.md`');
   });
 });

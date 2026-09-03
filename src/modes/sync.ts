@@ -4,7 +4,7 @@ import { applyViewEdits, type RawComment, rebuildClaimsFromComments } from '../c
 import { readLunariaStatus, toTrackedFiles } from '../lunaria.js';
 import { groupByLocale, type TrackedFile, type TrackerState } from '../model.js';
 import { reconcile } from '../reconcile.js';
-import { applyPlaceholders, renderBody, renderOptions } from '../render.js';
+import { applyPlaceholders, recomposeBody, renderBody, renderOptions } from '../render.js';
 import { parseState } from '../state.js';
 import { type ModeContext, writeStepSummary } from './index.js';
 
@@ -49,12 +49,16 @@ export async function runSync(ctx: ModeContext): Promise<void> {
   // 渲染与持久化包含已完成翻译的行（done 只展示打勾，不可认领）
   state.files = desiredFiles;
   const sections = groupByLocale(state.files);
-  const rendered = applyPlaceholders(
-    renderBody(baseBody, sections, state, renderOptions(ctx.config, ctx.repo, state.files)),
+  const rendered = recomposeBody(
+    baseBody,
+    template,
+    sections,
+    state,
     {
       ttl_days: String(ctx.config.ttlDays),
       dashboard_url: ctx.config.dashboardUrl ?? '',
     },
+    renderOptions(ctx.config, ctx.repo, state.files),
   );
 
   if (dryRun) {

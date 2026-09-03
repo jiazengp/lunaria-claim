@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import * as core from '@actions/core';
 import {
   applyClaimEntries,
@@ -10,7 +11,7 @@ import {
 import { readEventPayload } from '../event.js';
 import { message } from '../messages.js';
 import { activeClaims, fileKey, groupByLocale, type TrackerState } from '../model.js';
-import { renderBody, renderOptions } from '../render.js';
+import { applyPlaceholders, recomposeBody, renderOptions } from '../render.js';
 import { resolveTargets } from '../resolve.js';
 import { parseState } from '../state.js';
 import { type ModeContext, writeStepSummary } from './index.js';
@@ -108,10 +109,12 @@ export async function runClaim(ctx: ModeContext): Promise<void> {
 
   const changed = before !== JSON.stringify(state.claims);
   if (changed) {
-    const updated = renderBody(
+    const updated = recomposeBody(
       issue.body,
+      readFileSync(ctx.config.templatePath, 'utf-8'),
       groupByLocale(state.files),
       state,
+      { ttl_days: String(ctx.config.ttlDays), dashboard_url: ctx.config.dashboardUrl ?? '' },
       renderOptions(ctx.config, ctx.repo, state.files),
     );
     await ctx.api.updateIssueBody(issue.number, updated);
