@@ -21,6 +21,21 @@ export function readLunariaStatus(path: string): LunariaStatusItem[] {
 export function toTrackedFiles(status: LunariaStatusItem[], locales: string[]): TrackedFile[] {
   const files: TrackedFile[] = [];
   const toUrl = (url: string | undefined): string | undefined => url?.replace(/\\/g, '/');
+  const entry = (
+    sharedPath: string,
+    locale: string,
+    status: TrackedFile['status'],
+    localizationPath: string | undefined,
+    sourceUrl: string | undefined,
+    sourceHistoryUrl: string | undefined,
+  ): TrackedFile => ({
+    sharedPath,
+    locale,
+    status,
+    ...(localizationPath ? { localizationPath } : {}),
+    ...(sourceUrl ? { sourceUrl } : {}),
+    ...(sourceHistoryUrl ? { sourceHistoryUrl } : {}),
+  });
   for (const item of status) {
     const sourceUrl = toUrl(item.sourceFile.gitHostingFileURL);
     const sourceHistoryUrl = toUrl(item.sourceFile.gitHostingHistoryURL);
@@ -33,23 +48,18 @@ export function toTrackedFiles(status: LunariaStatusItem[], locales: string[]): 
         : undefined;
       const localizationPath = !loc.isMissing && loc.path ? loc.path : derived;
       if (loc.isMissing) {
-        files.push({
-          sharedPath: item.sharedPath,
-          locale,
-          status: 'missing',
-          localizationPath,
-          sourceUrl,
-          sourceHistoryUrl,
-        });
+        files.push(
+          entry(item.sharedPath, locale, 'missing', localizationPath, sourceUrl, sourceHistoryUrl),
+        );
       } else if (loc.isOutdated) {
-        files.push({
-          sharedPath: item.sharedPath,
-          locale,
-          status: 'outdated',
-          localizationPath,
-          sourceUrl,
-          sourceHistoryUrl,
-        });
+        files.push(
+          entry(item.sharedPath, locale, 'outdated', localizationPath, sourceUrl, sourceHistoryUrl),
+        );
+      } else {
+        // 已完成（up-to-date）：保留在清单中只展示打勾，不可认领
+        files.push(
+          entry(item.sharedPath, locale, 'done', localizationPath, sourceUrl, sourceHistoryUrl),
+        );
       }
     }
   }

@@ -28,8 +28,11 @@ const { state } = reconcile({ version: 1, files: [], claims: [] }, files, now);
 describe('real-world VitePress docs pipeline', () => {
   it('mirrors the real repository scale', () => {
     expect(status.length).toBeGreaterThanOrEqual(50);
-    expect(state.files.filter((file) => file.locale === 'en').length).toBe(7);
-    expect(state.files.filter((file) => file.locale === 'ja').length).toBe(10);
+    const claimable = state.files.filter((file) => file.status !== 'done');
+    expect(claimable.filter((file) => file.locale === 'en').length).toBe(7);
+    expect(claimable.filter((file) => file.locale === 'ja').length).toBe(10);
+    // 已完成翻译的行也保留在清单中（只展示打勾）
+    expect(state.files.some((file) => file.status === 'done')).toBe(true);
     // 站点配置翻译（.vitepress/locales）也被纳入清单
     expect(state.files.some((file) => file.sharedPath.startsWith('.vitepress/'))).toBe(true);
   });
@@ -58,8 +61,9 @@ describe('real-world VitePress docs pipeline', () => {
   });
 
   it('resolves claims the way contributors actually type them', () => {
-    const unique = state.files.find(
-      (file) => state.files.filter((other) => other.sharedPath === file.sharedPath).length === 1,
+    const claimable = state.files.filter((file) => file.status !== 'done');
+    const unique = claimable.find(
+      (file) => claimable.filter((other) => other.sharedPath === file.sharedPath).length === 1,
     );
     expect(unique).toBeDefined();
     if (!unique?.localizationPath) return;
@@ -68,8 +72,8 @@ describe('real-world VitePress docs pipeline', () => {
     expect(byRepoPath.entries[0]?.kind).toBe('file');
     expect(byRepoPath.entries[0]?.files[0]?.sharedPath).toBe(unique.sharedPath);
 
-    const shared = state.files.find(
-      (file) => state.files.filter((other) => other.sharedPath === file.sharedPath).length > 1,
+    const shared = claimable.find(
+      (file) => claimable.filter((other) => other.sharedPath === file.sharedPath).length > 1,
     );
     if (shared) {
       const ambiguous = resolveTargets([shared.sharedPath], state);

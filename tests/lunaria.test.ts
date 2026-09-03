@@ -8,10 +8,11 @@ const fixture = JSON.parse(
 ) as Parameters<typeof toTrackedFiles>[0];
 
 describe('toTrackedFiles', () => {
-  it('derives missing/outdated entries and drops done ones', () => {
+  it('derives missing/outdated/done entries', () => {
     const files = toTrackedFiles(fixture, ['ja', 'ko']);
     expect(files).toEqual([
       { sharedPath: 'index', locale: 'ja', status: 'missing', localizationPath: 'src/ja/index.md' },
+      { sharedPath: 'index', locale: 'ko', status: 'done', localizationPath: 'src/ko/index.md' },
       {
         sharedPath: 'download-client',
         locale: 'ja',

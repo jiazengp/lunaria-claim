@@ -144,3 +144,22 @@ describe('file vs directory collision', () => {
     expect(failures[0]?.reason).toBe('ambiguous');
   });
 });
+
+describe('done files are not claimable', () => {
+  it('reports unknown when the only candidate is already translated', () => {
+    const withDone: TrackedFile[] = [
+      ...files,
+      {
+        sharedPath: 'src/index.md',
+        locale: 'ko',
+        status: 'done',
+        localizationPath: 'src/ko/index.md',
+      },
+    ];
+    const stateWithDone: TrackerState = { version: 1, files: withDone, claims: [] };
+    // 只命中 done 目标 → 不可认领（unknown_file 文案本就覆盖"已翻译完成"）
+    const { entries, failures } = resolveTargets(['ko/index.md'], stateWithDone);
+    expect(entries).toHaveLength(0);
+    expect(failures[0]?.reason).toBe('unknown');
+  });
+});

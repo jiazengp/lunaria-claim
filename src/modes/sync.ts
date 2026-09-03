@@ -20,8 +20,9 @@ export async function runSync(ctx: ModeContext): Promise<void> {
   const status = readLunariaStatus(statusJsonPath);
   const locales = [...new Set(status.flatMap((item) => Object.keys(item.localizations)))];
   const desiredFiles = toTrackedFiles(status, locales);
+  const claimable = desiredFiles.filter((file) => file.status !== 'done');
   core.info(
-    `lunaria status: ${status.length} shared paths, ${desiredFiles.length} entries needing translation`,
+    `lunaria status: ${status.length} shared paths, ${claimable.length} needing translation (${desiredFiles.length - claimable.length} done)`,
   );
 
   const issue = await ctx.api.findTrackerIssue(ctx.config.issue.label);
@@ -44,7 +45,10 @@ export async function runSync(ctx: ModeContext): Promise<void> {
   }
 
   const releasedByView = applyViewEdits(current, baseBody, ctx.now);
-  const { state, sections, changed } = reconcile(current, desiredFiles, ctx.now);
+  const { state, changed } = reconcile(current, claimable, ctx.now);
+  // 渲染与持久化包含已完成翻译的行（done 只展示打勾，不可认领）
+  state.files = desiredFiles;
+  const sections = groupByLocale(state.files);
   const rendered = applyPlaceholders(
     renderBody(baseBody, sections, state, renderOptions(ctx.config, ctx.repo, state.files)),
     {

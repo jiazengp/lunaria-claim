@@ -234,3 +234,30 @@ describe('renderBody links', () => {
     expect(body).not.toContain('[source](https://github.com/o/r/blob/main/src/zh/missing.md)');
   });
 });
+
+describe('done rows', () => {
+  it('renders completed files as checked without a claimer, with an edit link', () => {
+    const doneFile = {
+      sharedPath: 'src/done.md',
+      locale: 'ja',
+      status: 'done' as const,
+      localizationPath: 'src/ja/done.md',
+      sourceUrl: 'https://github.com/o/r/blob/main/src/zh/done.md',
+    };
+    const body = renderBody(
+      `${STATE}\n\n{{files}}`,
+      groupByLocale([doneFile]),
+      { version: 1, files: [doneFile], claims: [] },
+      {
+        collapseThreshold: 30,
+        fileListStyle: 'flat',
+        repoUrl: 'https://github.com/o/r',
+        branch: 'main',
+      },
+    );
+    expect(body).toContain(
+      '- [x] [`src/done.md`](https://github.com/o/r/edit/main/src/ja/done.md)',
+    );
+    expect(body).not.toContain(' — @');
+  });
+});

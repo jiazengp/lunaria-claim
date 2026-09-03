@@ -53562,7 +53562,7 @@ function collectFiles(node) {
 }
 function renderFileLine(file, claimsByFile, options) {
 	const claim = claimsByFile.get(fileKey(file.locale, file.sharedPath));
-	const checked = claim ? "x" : " ";
+	const checked = claim || file.status === "done" ? "x" : " ";
 	const repoUrl = options.repoUrl ?? "";
 	const branch = options.branch ?? "main";
 	const actionUrl = repoUrl && file.localizationPath ? file.status === "missing" ? `${repoUrl}/new/${branch}/${file.localizationPath}` : `${repoUrl}/edit/${branch}/${file.localizationPath}` : "";
@@ -53623,10 +53623,11 @@ function normalizeToken(token) {
 	return token.replace(/^\.\//, "").replace(/^\/+|\/+$/g, "");
 }
 function matchFiles(token, files) {
+	const claimable = files.filter((file) => file.status !== "done");
 	const matches = /* @__PURE__ */ new Map();
 	const add = (file) => matches.set(fileKey(file.locale, file.sharedPath), file);
 	const tokenStem = token.replace(/\.[^.]+$/, "");
-	for (const file of files) {
+	for (const file of claimable) {
 		if (file.sharedPath === token || file.sharedPath.replace(/\.[^.]+$/, "") === tokenStem) {
 			add(file);
 			continue;
@@ -53634,12 +53635,12 @@ function matchFiles(token, files) {
 		if (file.localizationPath === token || file.localizationPath?.endsWith(`/${token}`)) add(file);
 	}
 	if (matches.size === 0) {
-		for (const file of files) if (token.endsWith(`/${file.sharedPath}`)) add(file);
+		for (const file of claimable) if (token.endsWith(`/${file.sharedPath}`)) add(file);
 	}
-	for (const file of files) if (file.sharedPath.startsWith(`${token}/`)) add(file);
-	for (const file of files) if (file.localizationPath?.startsWith(`${token}/`)) add(file);
+	for (const file of claimable) if (file.sharedPath.startsWith(`${token}/`)) add(file);
+	for (const file of claimable) if (file.localizationPath?.startsWith(`${token}/`)) add(file);
 	if (!token.includes("/")) {
-		for (const file of files) if (file.sharedPath.slice(file.sharedPath.lastIndexOf("/") + 1) === token) add(file);
+		for (const file of claimable) if (file.sharedPath.slice(file.sharedPath.lastIndexOf("/") + 1) === token) add(file);
 	}
 	return [...matches.values()];
 }
@@ -54037,6 +54038,14 @@ function readLunariaStatus(path) {
 function toTrackedFiles(status, locales) {
 	const files = [];
 	const toUrl = (url) => url?.replace(/\\/g, "/");
+	const entry = (sharedPath, locale, status, localizationPath, sourceUrl, sourceHistoryUrl) => ({
+		sharedPath,
+		locale,
+		status,
+		...localizationPath ? { localizationPath } : {},
+		...sourceUrl ? { sourceUrl } : {},
+		...sourceHistoryUrl ? { sourceHistoryUrl } : {}
+	});
 	for (const item of status) {
 		const sourceUrl = toUrl(item.sourceFile.gitHostingFileURL);
 		const sourceHistoryUrl = toUrl(item.sourceFile.gitHostingHistoryURL);
@@ -54045,22 +54054,9 @@ function toTrackedFiles(status, locales) {
 			if (!loc) continue;
 			const derived = item.sourceFile.path.includes(`/${item.sourceFile.lang}/`) ? item.sourceFile.path.replace(`/${item.sourceFile.lang}/`, `/${locale}/`) : void 0;
 			const localizationPath = !loc.isMissing && loc.path ? loc.path : derived;
-			if (loc.isMissing) files.push({
-				sharedPath: item.sharedPath,
-				locale,
-				status: "missing",
-				localizationPath,
-				sourceUrl,
-				sourceHistoryUrl
-			});
-			else if (loc.isOutdated) files.push({
-				sharedPath: item.sharedPath,
-				locale,
-				status: "outdated",
-				localizationPath,
-				sourceUrl,
-				sourceHistoryUrl
-			});
+			if (loc.isMissing) files.push(entry(item.sharedPath, locale, "missing", localizationPath, sourceUrl, sourceHistoryUrl));
+			else if (loc.isOutdated) files.push(entry(item.sharedPath, locale, "outdated", localizationPath, sourceUrl, sourceHistoryUrl));
+			else files.push(entry(item.sharedPath, locale, "done", localizationPath, sourceUrl, sourceHistoryUrl));
 		}
 	}
 	return files;
@@ -54104,7 +54100,8 @@ async function runSync(ctx) {
 	const template = readFileSync(ctx.config.templatePath, "utf-8");
 	const status = readLunariaStatus(statusJsonPath);
 	const desiredFiles = toTrackedFiles(status, [...new Set(status.flatMap((item) => Object.keys(item.localizations)))]);
-	info(`lunaria status: ${status.length} shared paths, ${desiredFiles.length} entries needing translation`);
+	const claimable = desiredFiles.filter((file) => file.status !== "done");
+	info(`lunaria status: ${status.length} shared paths, ${claimable.length} needing translation (${desiredFiles.length - claimable.length} done)`);
 	const issue = await ctx.api.findTrackerIssue(ctx.config.issue.label);
 	let current;
 	let baseBody;
@@ -54126,7 +54123,9 @@ async function runSync(ctx) {
 		}
 	}
 	const releasedByView = applyViewEdits(current, baseBody, ctx.now);
-	const { state, sections, changed } = reconcile(current, desiredFiles, ctx.now);
+	const { state, changed } = reconcile(current, claimable, ctx.now);
+	state.files = desiredFiles;
+	const sections = groupByLocale(state.files);
 	const rendered = applyPlaceholders(renderBody(baseBody, sections, state, renderOptions(ctx.config, ctx.repo, state.files)), {
 		ttl_days: String(ctx.config.ttlDays),
 		dashboard_url: ctx.config.dashboardUrl ?? ""

@@ -53,10 +53,12 @@ function normalizeToken(token: string): string {
 }
 
 function matchFiles(token: string, files: readonly TrackedFile[]): TrackedFile[] {
+  // 已完成翻译的行只展示、不可认领，不参与任何路径匹配
+  const claimable = files.filter((file) => file.status !== 'done');
   const matches = new Map<string, TrackedFile>();
   const add = (file: TrackedFile) => matches.set(fileKey(file.locale, file.sharedPath), file);
   const tokenStem = token.replace(/\.[^.]+$/, '');
-  for (const file of files) {
+  for (const file of claimable) {
     if (file.sharedPath === token || file.sharedPath.replace(/\.[^.]+$/, '') === tokenStem) {
       add(file);
       continue;
@@ -66,20 +68,20 @@ function matchFiles(token: string, files: readonly TrackedFile[]): TrackedFile[]
     }
   }
   if (matches.size === 0) {
-    for (const file of files) {
+    for (const file of claimable) {
       if (token.endsWith(`/${file.sharedPath}`)) add(file);
     }
   }
   // 目录前缀：先按 sharedPath，再按仓库真实路径（含语言目录）
-  for (const file of files) {
+  for (const file of claimable) {
     if (file.sharedPath.startsWith(`${token}/`)) add(file);
   }
-  for (const file of files) {
+  for (const file of claimable) {
     if (file.localizationPath?.startsWith(`${token}/`)) add(file);
   }
   // 裸文件名（leaf 简写）：无目录的 token 按 sharedPath 的 basename 匹配，重名时交给歧义处理
   if (!token.includes('/')) {
-    for (const file of files) {
+    for (const file of claimable) {
       if (file.sharedPath.slice(file.sharedPath.lastIndexOf('/') + 1) === token) add(file);
     }
   }

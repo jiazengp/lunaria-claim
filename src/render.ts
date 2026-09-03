@@ -232,7 +232,7 @@ function renderFileLine(
   options: RenderOptions,
 ): string {
   const claim = claimsByFile.get(fileKey(file.locale, file.sharedPath));
-  const checked = claim ? 'x' : ' ';
+  const checked = claim || file.status === 'done' ? 'x' : ' ';
   const repoUrl = options.repoUrl ?? '';
   const branch = options.branch ?? 'main';
   const actionUrl =
