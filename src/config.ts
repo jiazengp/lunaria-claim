@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 
-export const ModeSchema = z.enum(['sync', 'claim', 'expire', 'link-pr']);
+export const ModeSchema = z.enum(['sync', 'claim', 'expire', 'link-pr', 'view-edit']);
 export type Mode = z.infer<typeof ModeSchema>;
 
 export const FileListStyleSchema = z.enum(['tree', 'flat']);
@@ -58,9 +58,19 @@ export function parseInputs(raw: Record<string, string>): ActionInputs {
   };
 }
 
-export function loadConfig(path: string): ClaimConfig {
+export interface LoadedConfig {
+  config: ClaimConfig;
+  /** 用户显式写了 templatePath 键（自定义模板 = 布局真相源，正文整体重建） */
+  templateExplicit: boolean;
+}
+
+export function loadConfig(path: string): LoadedConfig {
   const raw: unknown = parseYaml(readFileSync(path, 'utf-8'));
-  return ClaimConfigSchema.parse(raw ?? {});
+  const record = raw !== null && typeof raw === 'object';
+  return {
+    config: ClaimConfigSchema.parse(raw ?? {}),
+    templateExplicit: record && 'templatePath' in (raw as Record<string, unknown>),
+  };
 }
 
 export function repoFromEnv(): { owner: string; repo: string } {

@@ -151,6 +151,22 @@ export function renderBody(
   }).replace(STATE_REGION_RE, () => serializeState(state));
 }
 
+/** 模板含按语言分区占位符（{{files_<lang>}}）时，布局以模板为准整体重建 */
+export function perLocaleTemplate(template: string): boolean {
+  return PER_LOCALE_PLACEHOLDER_RE.test(template);
+}
+
+/** 以模板为唯一真相整体重建正文（自定义模板与多占位符模板共用） */
+export function rebuildFromTemplate(
+  template: string,
+  sections: LocaleSection[],
+  state: TrackerState,
+  vars: Record<string, string>,
+  options: RenderOptions,
+): string {
+  return applyPlaceholders(renderBody(template, sections, state, options), vars);
+}
+
 /**
  * 更新已有 issue 的统一入口：优先在原正文上原位覆盖（保留用户手写内容）；
  * 正文已不可用（无占位符也无标记区，如多占位符模板）时回退到按模板整体重建。
@@ -164,8 +180,8 @@ export function recomposeBody(
   options: RenderOptions,
 ): string {
   // 多占位符（按语言分区）模板：布局以模板为准整体重建——正文里的旧分区无法可靠映射
-  if (PER_LOCALE_PLACEHOLDER_RE.test(template)) {
-    return applyPlaceholders(renderBody(template, sections, state, options), vars);
+  if (perLocaleTemplate(template)) {
+    return rebuildFromTemplate(template, sections, state, vars, options);
   }
   try {
     return applyPlaceholders(renderBody(body, sections, state, options), vars);
