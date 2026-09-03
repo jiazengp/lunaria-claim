@@ -288,7 +288,8 @@ function renderFileLine(
   const actionUrl =
     repoUrl && file.localizationPath
       ? file.status === 'missing'
-        ? `${repoUrl}/new/${branch}/${file.localizationPath}`
+        ? // GitHub 编辑器的规范深链：路径放在 filename 查询参数里（与编辑器自身生成的链接一致）
+          `${repoUrl}/new/${branch}?filename=${file.localizationPath}`
         : `${repoUrl}/edit/${branch}/${file.localizationPath}`
       : '';
   const shown = displayPath(file);

@@ -12,7 +12,7 @@ Lunaria 负责告诉你哪些文件还没翻译，lunaria-claim 负责让这些�
 
 - [ ] [`manual/`](https://github.com/your-org/your-docs/tree/main/src/manual)
   - [x] [`src/manual/canvas.md`](https://github.com/your-org/your-docs/edit/main/src/ja/manual/canvas.md) — @alice · 2026-09-01
-- [ ] [`src/guide.md`](https://github.com/your-org/your-docs/new/main/src/ja/guide.md) · [source](https://github.com/your-org/your-docs/blob/main/src/zh/guide.md) · [history](https://github.com/your-org/your-docs/commits/main/src/zh/guide.md)
+- [ ] [`src/guide.md`](https://github.com/your-org/your-docs/new/main?filename=src/ja/guide.md) · [source](https://github.com/your-org/your-docs/blob/main/src/zh/guide.md) · [history](https://github.com/your-org/your-docs/commits/main/src/zh/guide.md)
 ```
 
 ## 接入

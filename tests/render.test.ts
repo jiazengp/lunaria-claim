@@ -206,9 +206,11 @@ describe('renderBody links', () => {
       linkedOptions,
     );
     expect(body).toContain(
-      '[`src/ja/missing.md`](https://github.com/o/r/new/main/src/ja/missing.md)',
+      '[`src/ja/missing.md`](https://github.com/o/r/new/main?filename=src/ja/missing.md)',
     );
-    expect(body).toContain('[Create file](https://github.com/o/r/new/main/src/ja/missing.md)');
+    expect(body).toContain(
+      '[Create file](https://github.com/o/r/new/main?filename=src/ja/missing.md)',
+    );
     expect(body).toContain('[`src/ja/stale.md`](https://github.com/o/r/edit/main/src/ja/stale.md)');
     expect(body).toContain('[source](https://github.com/o/r/blob/main/src/zh/missing.md)');
     expect(body).toContain('[history](https://github.com/o/r/commits/main/src/zh/missing.md)');
@@ -236,7 +238,7 @@ describe('renderBody links', () => {
       linkedOptions,
     );
     expect(body).toContain(
-      '[`src/ja/missing.md`](https://github.com/o/r/new/main/src/ja/missing.md) — @alice · 2026-09-01',
+      '[`src/ja/missing.md`](https://github.com/o/r/new/main?filename=src/ja/missing.md) — @alice · 2026-09-01',
     );
     expect(body).not.toContain('[source](https://github.com/o/r/blob/main/src/zh/missing.md)');
   });

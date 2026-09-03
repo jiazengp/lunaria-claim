@@ -18,7 +18,7 @@
 
 - [ ] [`manual/`](https://github.com/your-org/your-docs/tree/main/src/manual)
   - [x] [`src/manual/canvas.md`](https://github.com/your-org/your-docs/edit/main/src/ja/manual/canvas.md) — @alice · 2026-09-01
-- [ ] [`src/guide.md`](https://github.com/your-org/your-docs/new/main/src/ja/guide.md) · [source](https://github.com/your-org/your-docs/blob/main/src/zh/guide.md) · [history](https://github.com/your-org/your-docs/commits/main/src/zh/guide.md)
+- [ ] [`src/guide.md`](https://github.com/your-org/your-docs/new/main?filename=src/ja/guide.md) · [source](https://github.com/your-org/your-docs/blob/main/src/zh/guide.md) · [history](https://github.com/your-org/your-docs/commits/main/src/zh/guide.md)
 ```
 
 认领状态存在 issue body 的 HTML 注释状态块里，不依赖事件顺序：

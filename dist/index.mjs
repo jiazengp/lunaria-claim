@@ -53592,7 +53592,7 @@ function renderFileLine(file, claimsByFile, options) {
 	const checked = claim || file.status === "done" ? "x" : " ";
 	const repoUrl = options.repoUrl ?? "";
 	const branch = options.branch ?? "main";
-	const actionUrl = repoUrl && file.localizationPath ? file.status === "missing" ? `${repoUrl}/new/${branch}/${file.localizationPath}` : `${repoUrl}/edit/${branch}/${file.localizationPath}` : "";
+	const actionUrl = repoUrl && file.localizationPath ? file.status === "missing" ? `${repoUrl}/new/${branch}?filename=${file.localizationPath}` : `${repoUrl}/edit/${branch}/${file.localizationPath}` : "";
 	const shown = displayPath(file);
 	const pathText = actionUrl ? `[\`${shown}\`](${actionUrl})` : `\`${shown}\``;
 	let tail = "";
