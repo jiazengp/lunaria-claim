@@ -8,7 +8,12 @@
 
 （暂无）
 
-## [1.1.0] - 2026-09-03
+## [1.1.1] - 2026-09-03
+
+### 修复
+
+- **发布阻断修复**：`dist/index.mjs` 此前把 `@actions/core` / `yaml` / `zod` / `@octokit/action` 当 external 未捆绑，而 Actions runner 只拿仓库内容、不安装依赖，导致 `@v1` 在真实 runner 上 `ERR_MODULE_NOT_FOUND`。现已通过 tsdown `noExternal` 捆绑全部直接依赖，并新增 runner 冒烟测试（`npm run smoke`，模拟无 node_modules 的 runner 加载入口）纳入 CI，从流程上防止复发
+
 
 ### 新增
 

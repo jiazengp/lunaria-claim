@@ -1,6 +1,6 @@
 {
   "name": "lunaria-claim",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "type": "module",
   "description": "GitHub Action that manages translation claim issues driven by Lunaria status output",
@@ -15,7 +15,8 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "test": "vitest run",
-    "ci": "npm run typecheck && npm run lint && npm run test && npm run build"
+    "ci": "npm run typecheck && npm run lint && npm run test && npm run build && npm run smoke",
+    "smoke": "node scripts/runner-smoke.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.11",
