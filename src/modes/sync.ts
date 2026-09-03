@@ -75,7 +75,7 @@ export async function runSync(ctx: ModeContext): Promise<void> {
     });
     return;
   }
-  if (!changed && rebuiltClaims === 0) {
+  if (!changed && releasedByView === 0 && rebuiltClaims === 0) {
     core.info(`tracker issue #${issue.number} is up to date`);
     core.setOutput(
       'issue-url',

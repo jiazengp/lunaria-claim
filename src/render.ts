@@ -187,7 +187,8 @@ export interface ViewCheckbox {
  */
 export function parseViewCheckboxes(body: string): ViewCheckbox[] {
   const HEADING_RE = /^### 🌐 ([A-Za-z0-9-]+)$/;
-  const CHECKBOX_RE = /^ {0,10}- \[([ xX])\] `([^`]+)`/;
+  // 链接形态 `- [ ] [`path`](url)` 与纯反引号形态都算；path 取自反引号内容
+  const CHECKBOX_RE = /^ {0,10}- \[([ xX])\] \[?`([^`]+)`/;
   const entries: ViewCheckbox[] = [];
   let locale = '';
   for (const line of body.split('\n')) {

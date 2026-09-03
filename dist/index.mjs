@@ -28392,7 +28392,7 @@ function recomposeBody(body, template, sections, state, vars, options) {
 */
 function parseViewCheckboxes(body) {
 	const HEADING_RE = /^### 🌐 ([A-Za-z0-9-]+)$/;
-	const CHECKBOX_RE = /^ {0,10}- \[([ xX])\] `([^`]+)`/;
+	const CHECKBOX_RE = /^ {0,10}- \[([ xX])\] \[?`([^`]+)`/;
 	const entries = [];
 	let locale = "";
 	for (const line of body.split("\n")) {
@@ -28668,6 +28668,8 @@ function applyViewEdits(state, body, now) {
 	for (const entry of view) {
 		if (!entry.sharedPath.endsWith("/") || entry.checked) continue;
 		const prefix = entry.sharedPath;
+		const subtree = state.files.filter((candidate) => (entry.locale ? candidate.locale === entry.locale : true) && (candidate.sharedPath.startsWith(prefix) || candidate.localizationPath?.startsWith(prefix) === true));
+		if (!(subtree.length === 0 || subtree.every((file) => activeClaims(state).some((claim) => fileKey(claim.locale, claim.path) === fileKey(file.locale, file.sharedPath))))) continue;
 		for (const claim of activeClaims(state)) {
 			if (!(entry.locale ? claim.locale === entry.locale : true)) continue;
 			const displayPrefixOk = state.files.find((candidate) => candidate.locale === claim.locale && candidate.sharedPath === claim.path)?.localizationPath?.startsWith(prefix) === true;
@@ -53964,10 +53966,10 @@ async function runExpire(ctx) {
 		info("no tracker issue found, nothing to sweep");
 		return;
 	}
-	const { state } = loadTrackerState(ctx, issue, "expiry sweep");
+	const { state, releasedByView } = loadTrackerState(ctx, issue, "expiry sweep");
 	const expired = findExpiredClaims(state, ctx.now, ctx.config.ttlDays);
-	if (expired.length === 0) {
-		info("no expired claims");
+	if (expired.length === 0 && releasedByView === 0) {
+		info("no expired claims and no view edits");
 		return;
 	}
 	for (const claim of expired) {
@@ -54171,7 +54173,7 @@ async function runSync(ctx) {
 		});
 		return;
 	}
-	if (!changed && rebuiltClaims === 0) {
+	if (!changed && releasedByView === 0 && rebuiltClaims === 0) {
 		info(`tracker issue #${issue.number} is up to date`);
 		setOutput("issue-url", `https://github.com/${ctx.repo.owner}/${ctx.repo.repo}/issues/${issue.number}`);
 		return;

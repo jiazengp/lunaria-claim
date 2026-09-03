@@ -14,10 +14,10 @@ export async function runExpire(ctx: ModeContext): Promise<void> {
     core.info('no tracker issue found, nothing to sweep');
     return;
   }
-  const { state } = loadTrackerState(ctx, issue, 'expiry sweep');
+  const { state, releasedByView } = loadTrackerState(ctx, issue, 'expiry sweep');
   const expired = findExpiredClaims(state, ctx.now, ctx.config.ttlDays);
-  if (expired.length === 0) {
-    core.info('no expired claims');
+  if (expired.length === 0 && releasedByView === 0) {
+    core.info('no expired claims and no view edits');
     return;
   }
   for (const claim of expired) {

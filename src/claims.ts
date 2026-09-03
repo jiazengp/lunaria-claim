@@ -167,10 +167,27 @@ export function applyViewEdits(state: TrackerState, body: string, now: Date): nu
     claim.releaseReason = 'manual';
     released++;
   }
-  // 目录行取消勾选 = 释放该目录下的全部认领；目录前缀可能是 sharedPath 或展示路径形态
+  // 目录行取消勾选 = 释放该目录下的全部认领；目录前缀可能是 sharedPath 或展示路径形态。
+  // 只有"上一轮渲染时该行是勾选态"（子树已全认领，见 renderTree 的 allClaimed 判定）的
+  // 取消勾选才是有效的管理员释放信号；部分认领的子树的目录行本来就没勾选，忽略之。
   for (const entry of view) {
     if (!entry.sharedPath.endsWith('/') || entry.checked) continue;
     const prefix = entry.sharedPath;
+    const subtree = state.files.filter(
+      (candidate) =>
+        (entry.locale ? candidate.locale === entry.locale : true) &&
+        (candidate.sharedPath.startsWith(prefix) ||
+          candidate.localizationPath?.startsWith(prefix) === true),
+    );
+    // state.files 覆盖不到该前缀时保持旧语义（仅构造认领的测试形态），按认领前缀直接释放
+    const fullyClaimed =
+      subtree.length === 0 ||
+      subtree.every((file) =>
+        activeClaims(state).some(
+          (claim) => fileKey(claim.locale, claim.path) === fileKey(file.locale, file.sharedPath),
+        ),
+      );
+    if (!fullyClaimed) continue;
     for (const claim of activeClaims(state)) {
       const localeMatch = entry.locale ? claim.locale === entry.locale : true;
       if (!localeMatch) continue;
