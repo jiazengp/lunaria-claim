@@ -3,3 +3,6 @@ coverage/
 *.log
 
 # dist/ 是构建产物，但作为 JS Action 的发布惯例需要随仓库提交，故不忽略
+
+# 咨询计划（improve skill 产物）：仅本地留存，不纳入版本管理
+plans/
