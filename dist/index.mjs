@@ -28402,23 +28402,34 @@ function recomposeBody(body, template, sections, state, vars, options) {
 * 从 body 的可见清单解析勾选状态（文件行与目录行都算）。
 * 语言上下文取最近的上方 `### 🌐 <lang>` 标题；没有任何标题时 locale 记空，
 * 由调用方（applyViewEdits）按路径兜底匹配。
+* 目录行只渲染末段（如 `ja/`），按缩进重建完整路径（`src/ja/`）：
+* 每层缩进 2 空格，深度 = 缩进 / 2，祖先目录行维持一个栈。
 */
 function parseViewCheckboxes(body) {
 	const HEADING_RE = /^### 🌐 ([A-Za-z0-9-]+)$/;
 	const CHECKBOX_RE = /^ {0,10}- \[([ xX])\] \[?`([^`]+)`/;
 	const entries = [];
 	let locale = "";
+	const dirStack = [];
 	for (const line of body.split("\n")) {
 		const heading = HEADING_RE.exec(line.trimEnd());
 		if (heading?.[1]) {
 			locale = heading[1];
+			dirStack.length = 0;
 			continue;
 		}
 		const checkbox = CHECKBOX_RE.exec(line);
 		if (!checkbox?.[1] || !checkbox[2]) continue;
+		const depth = (line.match(/^ */)?.[0].length ?? 0) / 2;
+		while (dirStack.length > depth) dirStack.pop();
+		let sharedPath = checkbox[2];
+		if (sharedPath.endsWith("/")) {
+			sharedPath = dirStack.join("") + sharedPath;
+			dirStack.push(checkbox[2]);
+		}
 		entries.push({
 			locale,
-			sharedPath: checkbox[2],
+			sharedPath,
 			checked: checkbox[1] !== " "
 		});
 	}

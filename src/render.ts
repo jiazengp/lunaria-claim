@@ -200,6 +200,8 @@ export interface ViewCheckbox {
  * 从 body 的可见清单解析勾选状态（文件行与目录行都算）。
  * 语言上下文取最近的上方 `### 🌐 <lang>` 标题；没有任何标题时 locale 记空，
  * 由调用方（applyViewEdits）按路径兜底匹配。
+ * 目录行只渲染末段（如 `ja/`），按缩进重建完整路径（`src/ja/`）：
+ * 每层缩进 2 空格，深度 = 缩进 / 2，祖先目录行维持一个栈。
  */
 export function parseViewCheckboxes(body: string): ViewCheckbox[] {
   const HEADING_RE = /^### 🌐 ([A-Za-z0-9-]+)$/;
@@ -207,15 +209,25 @@ export function parseViewCheckboxes(body: string): ViewCheckbox[] {
   const CHECKBOX_RE = /^ {0,10}- \[([ xX])\] \[?`([^`]+)`/;
   const entries: ViewCheckbox[] = [];
   let locale = '';
+  const dirStack: string[] = [];
   for (const line of body.split('\n')) {
     const heading = HEADING_RE.exec(line.trimEnd());
     if (heading?.[1]) {
       locale = heading[1];
+      dirStack.length = 0; // 每个语言区块是一棵独立的树
       continue;
     }
     const checkbox = CHECKBOX_RE.exec(line);
     if (!checkbox?.[1] || !checkbox[2]) continue;
-    entries.push({ locale, sharedPath: checkbox[2], checked: checkbox[1] !== ' ' });
+    const depth = (line.match(/^ */)?.[0].length ?? 0) / 2;
+    while (dirStack.length > depth) dirStack.pop();
+    let sharedPath = checkbox[2];
+    if (sharedPath.endsWith('/')) {
+      // 目录行：祖先段 + 当前段合成完整路径（`src/` 在 depth 0 时不变）；文件行保持原样
+      sharedPath = dirStack.join('') + sharedPath;
+      dirStack.push(checkbox[2]);
+    }
+    entries.push({ locale, sharedPath, checked: checkbox[1] !== ' ' });
   }
   return entries;
 }
